@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PDF結合ツール</title>
+<title>PDFツール</title>
 <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -16,160 +16,124 @@
     justify-content: center;
     padding: 40px 20px;
   }
-  .container {
-    max-width: 700px;
-    width: 100%;
+  .container { max-width: 700px; width: 100%; }
+  h1 { font-size: 24px; margin-bottom: 20px; text-align: center; color: #1a1a1a; }
+
+  /* モード切替 */
+  .mode-bar {
+    display: flex; justify-content: center; gap: 0; margin-bottom: 24px;
+    border: 1px solid #4a90d9; border-radius: 8px; overflow: hidden;
   }
-  h1 {
-    font-size: 24px;
-    margin-bottom: 24px;
-    text-align: center;
-    color: #1a1a1a;
+  .mode-bar label {
+    flex: 1; text-align: center; padding: 12px 16px; cursor: pointer;
+    font-size: 14px; font-weight: 500; background: #fff; color: #4a90d9;
+    transition: background 0.15s, color 0.15s; border-right: 1px solid #4a90d9;
   }
+  .mode-bar label:last-child { border-right: none; }
+  .mode-bar input { display: none; }
+  .mode-bar input:checked + span { background: #4a90d9; color: #fff; }
+  .mode-bar label:has(input:checked) { background: #4a90d9; color: #fff; }
+
   .drop-zone {
-    border: 2px dashed #aab;
-    border-radius: 12px;
-    padding: 48px 24px;
-    text-align: center;
-    background: #fff;
-    cursor: pointer;
-    transition: border-color 0.2s, background 0.2s;
-    margin-bottom: 20px;
+    border: 2px dashed #aab; border-radius: 12px; padding: 48px 24px;
+    text-align: center; background: #fff; cursor: pointer;
+    transition: border-color 0.2s, background 0.2s; margin-bottom: 20px;
   }
-  .drop-zone.dragover {
-    border-color: #4a90d9;
-    background: #e8f0fe;
-  }
-  .drop-zone p {
-    font-size: 16px;
-    color: #666;
-    pointer-events: none;
-  }
-  .drop-zone .hint {
-    font-size: 13px;
-    color: #999;
-    margin-top: 8px;
-  }
+  .drop-zone.dragover { border-color: #4a90d9; background: #e8f0fe; }
+  .drop-zone p { font-size: 16px; color: #666; pointer-events: none; }
+  .drop-zone .hint { font-size: 13px; color: #999; margin-top: 8px; }
   input[type="file"] { display: none; }
 
-  .file-list {
-    list-style: none;
-    margin-bottom: 20px;
-  }
+  .file-list { list-style: none; margin-bottom: 20px; }
   .file-list li {
-    display: flex;
-    align-items: center;
-    background: #fff;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    padding: 10px 14px;
-    margin-bottom: 6px;
-    cursor: grab;
-    user-select: none;
-    transition: box-shadow 0.15s;
+    display: flex; align-items: center; background: #fff; border: 1px solid #ddd;
+    border-radius: 8px; padding: 10px 14px; margin-bottom: 6px;
+    cursor: grab; user-select: none; transition: box-shadow 0.15s;
   }
   .file-list li:active { cursor: grabbing; }
-  .file-list li.dragging {
-    opacity: 0.5;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  }
-  .file-list li .num {
-    font-weight: bold;
-    color: #4a90d9;
-    margin-right: 12px;
-    min-width: 24px;
-    text-align: center;
-  }
-  .file-list li .name {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 14px;
-  }
-  .file-list li .pages {
-    font-size: 12px;
-    color: #888;
-    margin: 0 12px;
-    white-space: nowrap;
-  }
-  .file-list li .remove {
-    background: none;
-    border: none;
-    color: #c44;
-    font-size: 18px;
-    cursor: pointer;
-    padding: 0 4px;
-    line-height: 1;
-  }
+  .file-list li.dragging { opacity: 0.5; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+  .file-list li .num { font-weight: bold; color: #4a90d9; margin-right: 12px; min-width: 24px; text-align: center; }
+  .file-list li .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+  .file-list li .pages { font-size: 12px; color: #888; margin: 0 12px; white-space: nowrap; }
+  .file-list li .remove { background: none; border: none; color: #c44; font-size: 18px; cursor: pointer; padding: 0 4px; line-height: 1; }
   .file-list li .remove:hover { color: #a00; }
 
-  .actions {
-    display: flex;
-    gap: 12px;
-    justify-content: center;
-    margin-bottom: 16px;
-  }
+  .actions { display: flex; gap: 12px; justify-content: center; margin-bottom: 16px; flex-wrap: wrap; }
   button.primary {
-    background: #4a90d9;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    padding: 14px 40px;
-    font-size: 16px;
-    cursor: pointer;
-    transition: background 0.2s;
+    background: #4a90d9; color: #fff; border: none; border-radius: 8px;
+    padding: 14px 40px; font-size: 16px; cursor: pointer; transition: background 0.2s;
   }
   button.primary:hover { background: #3a7bc8; }
-  button.primary:disabled {
-    background: #aab;
-    cursor: not-allowed;
-  }
+  button.primary:disabled { background: #aab; cursor: not-allowed; }
   button.secondary {
-    background: #fff;
-    color: #666;
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    padding: 14px 28px;
-    font-size: 14px;
-    cursor: pointer;
-    transition: background 0.2s;
+    background: #fff; color: #666; border: 1px solid #ccc; border-radius: 8px;
+    padding: 14px 28px; font-size: 14px; cursor: pointer; transition: background 0.2s;
   }
   button.secondary:hover { background: #f5f5f5; }
 
-  .status {
-    text-align: center;
-    font-size: 14px;
-    color: #666;
-    min-height: 20px;
-  }
+  .status { text-align: center; font-size: 14px; color: #666; min-height: 20px; }
   .status.success { color: #2a7a2a; }
   .status.error { color: #c44; }
 
-  .drag-placeholder {
-    border: 2px dashed #4a90d9;
-    border-radius: 8px;
-    height: 46px;
-    margin-bottom: 6px;
-    background: #e8f0fe;
+  /* 変換オプション */
+  .convert-options {
+    background: #fff; border: 1px solid #ddd; border-radius: 8px;
+    padding: 16px; margin-bottom: 20px; display: none;
   }
+  .convert-options.show { display: block; }
+  .convert-options label { display: block; margin-bottom: 8px; font-size: 14px; cursor: pointer; }
+  .convert-options input[type="radio"] { margin-right: 8px; }
+  .option-row { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+  .option-row label { display: inline; margin-bottom: 0; font-size: 13px; }
+  .option-row select, .option-row input[type="number"] { padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
+
+  /* プレビュー */
+  .preview-area { margin-bottom: 20px; }
+  .preview-area img {
+    max-width: 100%; border: 1px solid #ddd; border-radius: 8px;
+    margin-bottom: 8px; display: block;
+  }
+  .preview-area canvas { display: none; }
 </style>
 </head>
 <body>
 <div class="container">
-  <h1>PDF結合ツール</h1>
+  <h1>PDFツール</h1>
+
+  <div class="mode-bar">
+    <label><input type="radio" name="mode" value="merge" checked onchange="switchMode('merge')"><span>PDF結合</span></label>
+    <label><input type="radio" name="mode" value="img2pdf" onchange="switchMode('img2pdf')"><span>画像→PDF</span></label>
+    <label><input type="radio" name="mode" value="pdf2img" onchange="switchMode('pdf2img')"><span>PDF→画像</span></label>
+  </div>
 
   <div class="drop-zone" id="dropZone">
-    <p>ここにPDFファイルをドラッグ＆ドロップ</p>
-    <p class="hint">またはクリックしてファイルを選択（複数可）</p>
+    <p id="dropText">ここにPDFファイルをドラッグ＆ドロップ</p>
+    <p class="hint" id="dropHint">またはクリックしてファイルを選択（複数可）</p>
   </div>
   <input type="file" id="fileInput" accept=".pdf" multiple>
 
+  <!-- PDF→画像 変換オプション -->
+  <div class="convert-options" id="pdf2imgOptions">
+    <strong>出力形式:</strong>
+    <div class="option-row">
+      <label><input type="radio" name="imgFormat" value="jpeg" checked> JPEG</label>
+      <label><input type="radio" name="imgFormat" value="png"> PNG</label>
+    </div>
+    <div class="option-row">
+      <label>解像度: <select id="pdfScale">
+        <option value="1">標準 (1x)</option>
+        <option value="1.5">高画質 (1.5x)</option>
+        <option value="2" selected>最高画質 (2x)</option>
+      </select></label>
+    </div>
+  </div>
+
   <ul class="file-list" id="fileList"></ul>
+  <div class="preview-area" id="previewArea"></div>
 
   <div class="actions">
     <button class="secondary" id="clearBtn" style="display:none">すべてクリア</button>
-    <button class="primary" id="mergeBtn" disabled>結合してダウンロード</button>
+    <button class="primary" id="actionBtn" disabled>結合してダウンロード</button>
   </div>
 
   <div class="status" id="status"></div>
@@ -179,135 +143,298 @@
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
 const fileList = document.getElementById('fileList');
-const mergeBtn = document.getElementById('mergeBtn');
+const actionBtn = document.getElementById('actionBtn');
 const clearBtn = document.getElementById('clearBtn');
-const status = document.getElementById('status');
+const statusEl = document.getElementById('status');
+const previewArea = document.getElementById('previewArea');
 
-let pdfFiles = []; // { file, pageCount }
+let currentMode = 'merge';
+let files = []; // { file, pageCount? }
 
-// --- Drop Zone ---
+// ===== モード切替 =====
+function switchMode(mode) {
+  currentMode = mode;
+  files = [];
+  fileList.innerHTML = '';
+  previewArea.innerHTML = '';
+  clearBtn.style.display = 'none';
+  actionBtn.disabled = true;
+  setStatus('');
+
+  document.getElementById('pdf2imgOptions').className = 'convert-options' + (mode === 'pdf2img' ? ' show' : '');
+
+  if (mode === 'merge') {
+    document.getElementById('dropText').textContent = 'ここにPDFファイルをドラッグ＆ドロップ';
+    document.getElementById('dropHint').textContent = 'またはクリックしてファイルを選択（複数可）';
+    fileInput.accept = '.pdf';
+    fileInput.multiple = true;
+    actionBtn.textContent = '結合してダウンロード';
+  } else if (mode === 'img2pdf') {
+    document.getElementById('dropText').textContent = 'ここに画像ファイルをドラッグ＆ドロップ';
+    document.getElementById('dropHint').textContent = 'JPEG / PNG対応（複数可・順番変更可）';
+    fileInput.accept = '.jpg,.jpeg,.png,.gif,.bmp,.webp';
+    fileInput.multiple = true;
+    actionBtn.textContent = 'PDFに変換してダウンロード';
+  } else if (mode === 'pdf2img') {
+    document.getElementById('dropText').textContent = 'ここにPDFファイルをドラッグ＆ドロップ';
+    document.getElementById('dropHint').textContent = '1つのPDFを画像に変換します';
+    fileInput.accept = '.pdf';
+    fileInput.multiple = false;
+    actionBtn.textContent = '画像に変換してダウンロード';
+  }
+}
+
+// ===== ドロップゾーン =====
 dropZone.addEventListener('click', () => fileInput.click());
 dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
 dropZone.addEventListener('drop', e => {
   e.preventDefault();
   dropZone.classList.remove('dragover');
-  addFiles([...e.dataTransfer.files].filter(f => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')));
+  handleFiles([...e.dataTransfer.files]);
 });
-fileInput.addEventListener('change', () => {
-  addFiles([...fileInput.files]);
-  fileInput.value = '';
-});
+fileInput.addEventListener('change', () => { handleFiles([...fileInput.files]); fileInput.value = ''; });
 
-async function addFiles(files) {
-  for (const file of files) {
+function handleFiles(newFiles) {
+  if (currentMode === 'merge') addPdfFiles(newFiles.filter(f => f.name.toLowerCase().endsWith('.pdf')));
+  else if (currentMode === 'img2pdf') addImageFiles(newFiles.filter(f => /\.(jpe?g|png|gif|bmp|webp)$/i.test(f.name)));
+  else if (currentMode === 'pdf2img') { files = []; addPdfFiles(newFiles.filter(f => f.name.toLowerCase().endsWith('.pdf')).slice(0, 1)); }
+}
+
+// ===== PDF結合モード =====
+async function addPdfFiles(newFiles) {
+  for (const file of newFiles) {
     try {
       const buf = await file.arrayBuffer();
       const doc = await PDFLib.PDFDocument.load(buf, { ignoreEncryption: true });
-      pdfFiles.push({ file, pageCount: doc.getPageCount() });
-    } catch (e) {
-      setStatus(`${file.name} を読み込めませんでした`, 'error');
-    }
+      files.push({ file, pageCount: doc.getPageCount() });
+    } catch (e) { setStatus(`${file.name} を読み込めませんでした`, 'error'); }
   }
   renderList();
 }
 
+// ===== 画像→PDF モード =====
+function addImageFiles(newFiles) {
+  for (const file of newFiles) {
+    files.push({ file, pageCount: null });
+  }
+  renderList();
+}
+
+// ===== ファイルリスト描画 =====
 function renderList() {
   fileList.innerHTML = '';
-  pdfFiles.forEach((item, i) => {
+  files.forEach((item, i) => {
     const li = document.createElement('li');
     li.draggable = true;
     li.dataset.index = i;
+    const pageInfo = item.pageCount != null ? `<span class="pages">${item.pageCount}ページ</span>` : '';
     li.innerHTML = `
       <span class="num">${i + 1}</span>
       <span class="name" title="${item.file.name}">${item.file.name}</span>
-      <span class="pages">${item.pageCount}ページ</span>
+      ${pageInfo}
       <button class="remove" title="削除">&times;</button>
     `;
-    li.querySelector('.remove').addEventListener('click', () => {
-      pdfFiles.splice(i, 1);
-      renderList();
-    });
-    // Drag reorder
+    li.querySelector('.remove').addEventListener('click', () => { files.splice(i, 1); renderList(); });
     li.addEventListener('dragstart', onDragStart);
     li.addEventListener('dragover', onDragOver);
     li.addEventListener('dragend', onDragEnd);
     li.addEventListener('drop', onDrop);
     fileList.appendChild(li);
   });
-  mergeBtn.disabled = pdfFiles.length < 2;
-  clearBtn.style.display = pdfFiles.length > 0 ? '' : 'none';
-  if (pdfFiles.length < 2 && pdfFiles.length > 0) {
-    setStatus('2つ以上のPDFを追加してください');
-  } else {
+
+  if (currentMode === 'merge') {
+    actionBtn.disabled = files.length < 2;
+    if (files.length === 1) setStatus('2つ以上のPDFを追加してください');
+    else setStatus('');
+  } else if (currentMode === 'img2pdf') {
+    actionBtn.disabled = files.length < 1;
+    setStatus('');
+  } else if (currentMode === 'pdf2img') {
+    actionBtn.disabled = files.length < 1;
     setStatus('');
   }
+  clearBtn.style.display = files.length > 0 ? '' : 'none';
 }
 
-// --- Drag Reorder ---
+// ===== ドラッグ並び替え =====
 let dragIdx = null;
-function onDragStart(e) {
-  dragIdx = +this.dataset.index;
-  this.classList.add('dragging');
-  e.dataTransfer.effectAllowed = 'move';
-}
-function onDragOver(e) {
-  e.preventDefault();
-  e.dataTransfer.dropEffect = 'move';
-}
+function onDragStart(e) { dragIdx = +this.dataset.index; this.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; }
+function onDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }
 function onDrop(e) {
   e.preventDefault();
   const toIdx = +this.dataset.index;
-  if (dragIdx !== null && dragIdx !== toIdx) {
-    const [moved] = pdfFiles.splice(dragIdx, 1);
-    pdfFiles.splice(toIdx, 0, moved);
-    renderList();
-  }
+  if (dragIdx !== null && dragIdx !== toIdx) { const [moved] = files.splice(dragIdx, 1); files.splice(toIdx, 0, moved); renderList(); }
 }
-function onDragEnd() {
-  this.classList.remove('dragging');
-  dragIdx = null;
-}
+function onDragEnd() { this.classList.remove('dragging'); dragIdx = null; }
 
-// --- Clear ---
-clearBtn.addEventListener('click', () => {
-  pdfFiles = [];
-  renderList();
+// ===== クリア =====
+clearBtn.addEventListener('click', () => { files = []; previewArea.innerHTML = ''; renderList(); });
+
+// ===== 実行ボタン =====
+actionBtn.addEventListener('click', () => {
+  if (currentMode === 'merge') doMerge();
+  else if (currentMode === 'img2pdf') doImg2Pdf();
+  else if (currentMode === 'pdf2img') doPdf2Img();
 });
 
-// --- Merge ---
-mergeBtn.addEventListener('click', async () => {
-  if (pdfFiles.length < 2) return;
-  mergeBtn.disabled = true;
+// ===== PDF結合 =====
+async function doMerge() {
+  if (files.length < 2) return;
+  actionBtn.disabled = true;
   setStatus('結合中...');
   try {
     const merged = await PDFLib.PDFDocument.create();
-    for (const item of pdfFiles) {
+    for (const item of files) {
       const buf = await item.file.arrayBuffer();
       const src = await PDFLib.PDFDocument.load(buf, { ignoreEncryption: true });
       const pages = await merged.copyPages(src, src.getPageIndices());
       pages.forEach(p => merged.addPage(p));
     }
     const bytes = await merged.save();
-    const blob = new Blob([bytes], { type: 'application/pdf' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'merged_' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '.pdf';
-    a.click();
-    URL.revokeObjectURL(url);
+    download(bytes, 'merged_' + dateStr() + '.pdf', 'application/pdf');
+    const totalPages = files.reduce((s, f) => s + f.pageCount, 0);
+    setStatus(`結合完了！ ${files.length}ファイル → ${totalPages}ページ`, 'success');
+  } catch (e) { setStatus('結合に失敗しました: ' + e.message, 'error'); }
+  actionBtn.disabled = files.length < 2;
+}
 
-    const totalPages = pdfFiles.reduce((s, f) => s + f.pageCount, 0);
-    setStatus(`結合完了！ ${pdfFiles.length}ファイル → ${totalPages}ページ`, 'success');
-  } catch (e) {
-    setStatus('結合に失敗しました: ' + e.message, 'error');
-  }
-  mergeBtn.disabled = pdfFiles.length < 2;
-});
+// ===== 画像→PDF =====
+async function doImg2Pdf() {
+  if (files.length < 1) return;
+  actionBtn.disabled = true;
+  setStatus('変換中...');
+  try {
+    const pdfDoc = await PDFLib.PDFDocument.create();
+    for (const item of files) {
+      const buf = await item.file.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      let img;
+      const ext = item.file.name.toLowerCase();
+      if (ext.endsWith('.png')) {
+        img = await pdfDoc.embedPng(bytes);
+      } else {
+        img = await pdfDoc.embedJpg(bytes);
+      }
+      const page = pdfDoc.addPage([img.width, img.height]);
+      page.drawImage(img, { x: 0, y: 0, width: img.width, height: img.height });
+    }
+    const pdfBytes = await pdfDoc.save();
+    download(pdfBytes, 'images_' + dateStr() + '.pdf', 'application/pdf');
+    setStatus(`変換完了！ ${files.length}画像 → PDF`, 'success');
+  } catch (e) { setStatus('変換に失敗しました: ' + e.message, 'error'); }
+  actionBtn.disabled = files.length < 1;
+}
+
+// ===== PDF→画像 =====
+async function doPdf2Img() {
+  if (files.length < 1) return;
+  actionBtn.disabled = true;
+  setStatus('変換中...');
+  previewArea.innerHTML = '';
+
+  try {
+    const format = document.querySelector('input[name="imgFormat"]:checked').value;
+    const scale = parseFloat(document.getElementById('pdfScale').value);
+    const buf = await files[0].file.arrayBuffer();
+
+    // pdf.jsを動的に読み込み
+    if (!window.pdfjsLib) {
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    const totalPages = pdf.numPages;
+    const imageFiles = [];
+
+    for (let i = 1; i <= totalPages; i++) {
+      setStatus(`変換中... ${i}/${totalPages}ページ`);
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const ctx = canvas.getContext('2d');
+      await page.render({ canvasContext: ctx, viewport }).promise;
+
+      const mimeType = format === 'png' ? 'image/png' : 'image/jpeg';
+      const quality = format === 'jpeg' ? 0.92 : undefined;
+      const dataUrl = canvas.toDataURL(mimeType, quality);
+
+      // プレビュー表示
+      const img = document.createElement('img');
+      img.src = dataUrl;
+      img.title = `${i}ページ目`;
+      previewArea.appendChild(img);
+
+      // Blob化
+      const blob = await (await fetch(dataUrl)).blob();
+      imageFiles.push({ blob, name: `page_${String(i).padStart(3,'0')}.${format}` });
+    }
+
+    // 1ページなら直接ダウンロード、複数ページならZIP
+    if (imageFiles.length === 1) {
+      const url = URL.createObjectURL(imageFiles[0].blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = imageFiles[0].name; a.click();
+      URL.revokeObjectURL(url);
+    } else {
+      // 複数ページ: 個別ダウンロードリンク表示
+      const dlDiv = document.createElement('div');
+      dlDiv.style.cssText = 'text-align:center;margin-top:12px;';
+      dlDiv.innerHTML = '<strong>各ページをクリックでダウンロード:</strong><br>';
+      imageFiles.forEach((f, idx) => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(f.blob);
+        a.download = f.name;
+        a.textContent = `${idx + 1}ページ目`;
+        a.style.cssText = 'display:inline-block;margin:4px 8px;color:#4a90d9;';
+        dlDiv.appendChild(a);
+      });
+      // 一括ダウンロードボタン
+      const allBtn = document.createElement('button');
+      allBtn.className = 'secondary';
+      allBtn.textContent = '全ページ一括ダウンロード';
+      allBtn.style.cssText = 'margin-top:12px;';
+      allBtn.addEventListener('click', () => {
+        imageFiles.forEach(f => {
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(f.blob);
+          a.download = f.name; a.click();
+        });
+      });
+      dlDiv.appendChild(document.createElement('br'));
+      dlDiv.appendChild(allBtn);
+      previewArea.appendChild(dlDiv);
+    }
+
+    setStatus(`変換完了！ ${totalPages}ページ → ${format.toUpperCase()}`, 'success');
+  } catch (e) { setStatus('変換に失敗しました: ' + e.message, 'error'); }
+  actionBtn.disabled = files.length < 1;
+}
+
+// ===== ユーティリティ =====
+function download(bytes, name, type) {
+  const blob = new Blob([bytes], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = name; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function dateStr() { return new Date().toISOString().slice(0,10).replace(/-/g,''); }
 
 function setStatus(msg, type) {
-  status.textContent = msg;
-  status.className = 'status' + (type ? ' ' + type : '');
+  statusEl.textContent = msg;
+  statusEl.className = 'status' + (type ? ' ' + type : '');
+}
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = src; s.onload = resolve; s.onerror = reject;
+    document.head.appendChild(s);
+  });
 }
 </script>
 </body>
