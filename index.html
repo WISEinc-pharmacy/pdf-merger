@@ -25,13 +25,12 @@
     border: 1px solid #4a90d9; border-radius: 8px; overflow: hidden;
   }
   .mode-bar label {
-    flex: 1; text-align: center; padding: 12px 16px; cursor: pointer;
-    font-size: 14px; font-weight: 500; background: #fff; color: #4a90d9;
+    flex: 1; text-align: center; padding: 12px 8px; cursor: pointer;
+    font-size: 13px; font-weight: 500; background: #fff; color: #4a90d9;
     transition: background 0.15s, color 0.15s; border-right: 1px solid #4a90d9;
   }
   .mode-bar label:last-child { border-right: none; }
   .mode-bar input { display: none; }
-  .mode-bar input:checked + span { background: #4a90d9; color: #fff; }
   .mode-bar label:has(input:checked) { background: #4a90d9; color: #fff; }
 
   .drop-zone {
@@ -87,6 +86,28 @@
   .option-row label { display: inline; margin-bottom: 0; font-size: 13px; }
   .option-row select, .option-row input[type="number"] { padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
 
+  /* 分割オプション */
+  .split-options {
+    background: #fff; border: 1px solid #ddd; border-radius: 8px;
+    padding: 16px; margin-bottom: 20px; display: none;
+  }
+  .split-options.show { display: block; }
+  .split-options label { font-size: 14px; font-weight: 500; }
+  .split-options input[type="text"] {
+    width: 100%; padding: 10px 12px; border: 1px solid #ccc; border-radius: 6px;
+    font-size: 14px; margin-top: 8px;
+  }
+  .split-options .hint { font-size: 12px; color: #888; margin-top: 6px; }
+
+  /* 警告バナー */
+  .warning-banner {
+    background: #fff8e1; border: 1px solid #ffd54f; border-radius: 8px;
+    padding: 12px 16px; margin-bottom: 20px; font-size: 13px; color: #795548;
+    display: none; line-height: 1.6;
+  }
+  .warning-banner.show { display: block; }
+  .warning-banner strong { color: #e65100; }
+
   /* プレビュー */
   .preview-area { margin-bottom: 20px; }
   .preview-area img {
@@ -94,6 +115,35 @@
     margin-bottom: 8px; display: block;
   }
   .preview-area canvas { display: none; }
+
+  /* 出力後アクション */
+  .output-actions {
+    display: none; justify-content: center; gap: 12px; margin-top: 16px; flex-wrap: wrap;
+  }
+  .output-actions.show { display: flex; }
+  .output-actions button {
+    background: #fff; color: #4a90d9; border: 1px solid #4a90d9; border-radius: 8px;
+    padding: 10px 24px; font-size: 14px; cursor: pointer; transition: background 0.15s;
+  }
+  .output-actions button:hover { background: #e8f0fe; }
+
+  /* PDFプレビュー iframe */
+  #pdfPreviewFrame {
+    width: 100%; height: 500px; border: 1px solid #ddd; border-radius: 8px;
+    display: none; margin-top: 12px;
+  }
+
+  /* Officeプレビュー */
+  #officePreview {
+    background: #fff; border: 1px solid #ddd; border-radius: 8px;
+    padding: 24px; margin-bottom: 20px; display: none;
+    max-height: 600px; overflow: auto; font-size: 14px; line-height: 1.6;
+  }
+  #officePreview table { border-collapse: collapse; width: 100%; }
+  #officePreview td, #officePreview th {
+    border: 1px solid #ccc; padding: 6px 10px; font-size: 13px; text-align: left;
+  }
+  #officePreview th { background: #f5f5f5; font-weight: 600; }
 </style>
 </head>
 <body>
@@ -102,8 +152,17 @@
 
   <div class="mode-bar">
     <label><input type="radio" name="mode" value="merge" checked onchange="switchMode('merge')"><span>PDF結合</span></label>
+    <label><input type="radio" name="mode" value="split" onchange="switchMode('split')"><span>PDF分割</span></label>
     <label><input type="radio" name="mode" value="img2pdf" onchange="switchMode('img2pdf')"><span>画像→PDF</span></label>
     <label><input type="radio" name="mode" value="pdf2img" onchange="switchMode('pdf2img')"><span>PDF→画像</span></label>
+    <label><input type="radio" name="mode" value="office2pdf" onchange="switchMode('office2pdf')"><span>Office→PDF</span></label>
+  </div>
+
+  <!-- Office→PDF 警告 -->
+  <div class="warning-banner" id="officeWarning">
+    <strong>⚠ フォント・レイアウトが崩れる場合があります</strong><br>
+    複雑なレイアウトのファイルは、PCの「印刷」→「PDFとして保存」でPDF化する方がより正確です。<br>
+    簡易的な変換としてご利用ください。
   </div>
 
   <div class="drop-zone" id="dropZone">
@@ -128,6 +187,16 @@
     </div>
   </div>
 
+  <!-- PDF分割 オプション -->
+  <div class="split-options" id="splitOptions">
+    <label>抽出するページ範囲:</label>
+    <input type="text" id="splitRange" placeholder="例: 1-3, 5, 7-10">
+    <p class="hint" id="splitHint">PDFをドロップすると総ページ数が表示されます</p>
+  </div>
+
+  <!-- Officeプレビュー -->
+  <div id="officePreview"></div>
+
   <ul class="file-list" id="fileList"></ul>
   <div class="preview-area" id="previewArea"></div>
 
@@ -137,6 +206,14 @@
   </div>
 
   <div class="status" id="status"></div>
+
+  <!-- 出力後アクション（プレビュー・印刷） -->
+  <div class="output-actions" id="outputActions">
+    <button onclick="previewOutput()">📄 プレビュー</button>
+    <button onclick="printOutput()">🖨 印刷</button>
+    <button onclick="downloadOutput()">💾 もう一度ダウンロード</button>
+  </div>
+  <iframe id="pdfPreviewFrame"></iframe>
 </div>
 
 <script>
@@ -147,9 +224,12 @@ const actionBtn = document.getElementById('actionBtn');
 const clearBtn = document.getElementById('clearBtn');
 const statusEl = document.getElementById('status');
 const previewArea = document.getElementById('previewArea');
+const officePreview = document.getElementById('officePreview');
 
 let currentMode = 'merge';
 let files = []; // { file, pageCount? }
+let lastOutputBlob = null; // 最後に生成したPDFのBlob
+let lastOutputName = '';
 
 // ===== モード切替 =====
 function switchMode(mode) {
@@ -157,11 +237,17 @@ function switchMode(mode) {
   files = [];
   fileList.innerHTML = '';
   previewArea.innerHTML = '';
+  officePreview.style.display = 'none';
+  officePreview.innerHTML = '';
   clearBtn.style.display = 'none';
   actionBtn.disabled = true;
+  lastOutputBlob = null;
+  hideOutputActions();
   setStatus('');
 
   document.getElementById('pdf2imgOptions').className = 'convert-options' + (mode === 'pdf2img' ? ' show' : '');
+  document.getElementById('splitOptions').className = 'split-options' + (mode === 'split' ? ' show' : '');
+  document.getElementById('officeWarning').className = 'warning-banner' + (mode === 'office2pdf' ? ' show' : '');
 
   if (mode === 'merge') {
     document.getElementById('dropText').textContent = 'ここにPDFファイルをドラッグ＆ドロップ';
@@ -169,6 +255,14 @@ function switchMode(mode) {
     fileInput.accept = '.pdf';
     fileInput.multiple = true;
     actionBtn.textContent = '結合してダウンロード';
+  } else if (mode === 'split') {
+    document.getElementById('dropText').textContent = 'ここにPDFファイルをドラッグ＆ドロップ';
+    document.getElementById('dropHint').textContent = '分割したいPDFを1つ選択';
+    fileInput.accept = '.pdf';
+    fileInput.multiple = false;
+    actionBtn.textContent = '分割してダウンロード';
+    document.getElementById('splitRange').value = '';
+    document.getElementById('splitHint').textContent = 'PDFをドロップすると総ページ数が表示されます';
   } else if (mode === 'img2pdf') {
     document.getElementById('dropText').textContent = 'ここに画像ファイルをドラッグ＆ドロップ';
     document.getElementById('dropHint').textContent = 'JPEG / PNG対応（複数可・順番変更可）';
@@ -181,6 +275,12 @@ function switchMode(mode) {
     fileInput.accept = '.pdf';
     fileInput.multiple = false;
     actionBtn.textContent = '画像に変換してダウンロード';
+  } else if (mode === 'office2pdf') {
+    document.getElementById('dropText').textContent = 'ここにWord / Excelファイルをドラッグ＆ドロップ';
+    document.getElementById('dropHint').textContent = '.docx / .xlsx / .xls 対応';
+    fileInput.accept = '.docx,.xlsx,.xls';
+    fileInput.multiple = false;
+    actionBtn.textContent = '印刷 / PDF保存';
   }
 }
 
@@ -197,11 +297,13 @@ fileInput.addEventListener('change', () => { handleFiles([...fileInput.files]); 
 
 function handleFiles(newFiles) {
   if (currentMode === 'merge') addPdfFiles(newFiles.filter(f => f.name.toLowerCase().endsWith('.pdf')));
+  else if (currentMode === 'split') { files = []; addPdfFiles(newFiles.filter(f => f.name.toLowerCase().endsWith('.pdf')).slice(0, 1)); }
   else if (currentMode === 'img2pdf') addImageFiles(newFiles.filter(f => /\.(jpe?g|png|gif|bmp|webp)$/i.test(f.name)));
   else if (currentMode === 'pdf2img') { files = []; addPdfFiles(newFiles.filter(f => f.name.toLowerCase().endsWith('.pdf')).slice(0, 1)); }
+  else if (currentMode === 'office2pdf') { files = []; addOfficeFiles(newFiles.filter(f => /\.(docx|xlsx|xls)$/i.test(f.name)).slice(0, 1)); }
 }
 
-// ===== PDF結合モード =====
+// ===== PDF読み込み =====
 async function addPdfFiles(newFiles) {
   for (const file of newFiles) {
     try {
@@ -210,15 +312,56 @@ async function addPdfFiles(newFiles) {
       files.push({ file, pageCount: doc.getPageCount() });
     } catch (e) { setStatus(`${file.name} を読み込めませんでした`, 'error'); }
   }
+  if (currentMode === 'split' && files.length > 0) {
+    document.getElementById('splitHint').textContent = `全 ${files[0].pageCount} ページ（例: 1-${Math.min(3, files[0].pageCount)}, ${files[0].pageCount}）`;
+  }
   renderList();
 }
 
 // ===== 画像→PDF モード =====
 function addImageFiles(newFiles) {
-  for (const file of newFiles) {
-    files.push({ file, pageCount: null });
-  }
+  for (const file of newFiles) files.push({ file, pageCount: null });
   renderList();
+}
+
+// ===== Office読み込み =====
+function addOfficeFiles(newFiles) {
+  for (const file of newFiles) files.push({ file, pageCount: null });
+  renderList();
+  if (files.length > 0) loadOfficePreview(files[0].file);
+}
+
+async function loadOfficePreview(file) {
+  setStatus('読み込み中...');
+  officePreview.style.display = 'none';
+  officePreview.innerHTML = '';
+
+  const ext = file.name.toLowerCase();
+  try {
+    if (ext.endsWith('.docx')) {
+      if (!window.mammoth) await loadScript('https://unpkg.com/mammoth@1.8.0/mammoth.browser.min.js');
+      const buf = await file.arrayBuffer();
+      const result = await mammoth.convertToHtml({ arrayBuffer: buf });
+      officePreview.innerHTML = result.value;
+      officePreview.style.display = 'block';
+      setStatus('プレビューを表示しています。内容を確認して「印刷 / PDF保存」を押してください。');
+    } else if (ext.endsWith('.xlsx') || ext.endsWith('.xls')) {
+      if (!window.XLSX) await loadScript('https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js');
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array' });
+      let html = '';
+      for (const name of wb.SheetNames) {
+        const ws = wb.Sheets[name];
+        html += `<h3 style="margin:16px 0 8px;font-size:15px;">シート: ${name}</h3>`;
+        html += XLSX.utils.sheet_to_html(ws, { editable: false });
+      }
+      officePreview.innerHTML = html;
+      officePreview.style.display = 'block';
+      setStatus('プレビューを表示しています。内容を確認して「印刷 / PDF保存」を押してください。');
+    }
+  } catch (e) {
+    setStatus('ファイルの読み込みに失敗しました: ' + e.message, 'error');
+  }
 }
 
 // ===== ファイルリスト描画 =====
@@ -235,7 +378,11 @@ function renderList() {
       ${pageInfo}
       <button class="remove" title="削除">&times;</button>
     `;
-    li.querySelector('.remove').addEventListener('click', () => { files.splice(i, 1); renderList(); });
+    li.querySelector('.remove').addEventListener('click', () => {
+      files.splice(i, 1);
+      if (currentMode === 'office2pdf') { officePreview.style.display = 'none'; officePreview.innerHTML = ''; }
+      renderList();
+    });
     li.addEventListener('dragstart', onDragStart);
     li.addEventListener('dragover', onDragOver);
     li.addEventListener('dragend', onDragEnd);
@@ -246,13 +393,15 @@ function renderList() {
   if (currentMode === 'merge') {
     actionBtn.disabled = files.length < 2;
     if (files.length === 1) setStatus('2つ以上のPDFを追加してください');
-    else setStatus('');
+    else if (files.length === 0) setStatus('');
+  } else if (currentMode === 'split') {
+    actionBtn.disabled = files.length < 1;
   } else if (currentMode === 'img2pdf') {
     actionBtn.disabled = files.length < 1;
-    setStatus('');
   } else if (currentMode === 'pdf2img') {
     actionBtn.disabled = files.length < 1;
-    setStatus('');
+  } else if (currentMode === 'office2pdf') {
+    actionBtn.disabled = files.length < 1;
   }
   clearBtn.style.display = files.length > 0 ? '' : 'none';
 }
@@ -269,13 +418,23 @@ function onDrop(e) {
 function onDragEnd() { this.classList.remove('dragging'); dragIdx = null; }
 
 // ===== クリア =====
-clearBtn.addEventListener('click', () => { files = []; previewArea.innerHTML = ''; renderList(); });
+clearBtn.addEventListener('click', () => {
+  files = [];
+  previewArea.innerHTML = '';
+  officePreview.style.display = 'none';
+  officePreview.innerHTML = '';
+  lastOutputBlob = null;
+  hideOutputActions();
+  renderList();
+});
 
 // ===== 実行ボタン =====
 actionBtn.addEventListener('click', () => {
   if (currentMode === 'merge') doMerge();
+  else if (currentMode === 'split') doSplit();
   else if (currentMode === 'img2pdf') doImg2Pdf();
   else if (currentMode === 'pdf2img') doPdf2Img();
+  else if (currentMode === 'office2pdf') doOfficePrint();
 });
 
 // ===== PDF結合 =====
@@ -292,11 +451,67 @@ async function doMerge() {
       pages.forEach(p => merged.addPage(p));
     }
     const bytes = await merged.save();
-    download(bytes, 'merged_' + dateStr() + '.pdf', 'application/pdf');
+    lastOutputName = 'merged_' + dateStr() + '.pdf';
+    lastOutputBlob = new Blob([bytes], { type: 'application/pdf' });
+    downloadBlob(lastOutputBlob, lastOutputName);
     const totalPages = files.reduce((s, f) => s + f.pageCount, 0);
     setStatus(`結合完了！ ${files.length}ファイル → ${totalPages}ページ`, 'success');
+    showOutputActions();
   } catch (e) { setStatus('結合に失敗しました: ' + e.message, 'error'); }
   actionBtn.disabled = files.length < 2;
+}
+
+// ===== PDF分割 =====
+async function doSplit() {
+  if (files.length < 1) return;
+  const rangeStr = document.getElementById('splitRange').value.trim();
+  if (!rangeStr) { setStatus('ページ範囲を入力してください', 'error'); return; }
+
+  const totalPages = files[0].pageCount;
+  let pageIndices;
+  try {
+    pageIndices = parsePageRange(rangeStr, totalPages);
+  } catch (e) { setStatus(e.message, 'error'); return; }
+
+  if (pageIndices.length === 0) { setStatus('抽出するページがありません', 'error'); return; }
+
+  actionBtn.disabled = true;
+  setStatus('分割中...');
+  try {
+    const buf = await files[0].file.arrayBuffer();
+    const src = await PDFLib.PDFDocument.load(buf, { ignoreEncryption: true });
+    const newDoc = await PDFLib.PDFDocument.create();
+    const copiedPages = await newDoc.copyPages(src, pageIndices);
+    copiedPages.forEach(p => newDoc.addPage(p));
+    const bytes = await newDoc.save();
+    lastOutputName = 'split_' + dateStr() + '.pdf';
+    lastOutputBlob = new Blob([bytes], { type: 'application/pdf' });
+    downloadBlob(lastOutputBlob, lastOutputName);
+    setStatus(`分割完了！ ${pageIndices.length}ページを抽出しました`, 'success');
+    showOutputActions();
+  } catch (e) { setStatus('分割に失敗しました: ' + e.message, 'error'); }
+  actionBtn.disabled = false;
+}
+
+function parsePageRange(str, total) {
+  const indices = new Set();
+  const parts = str.split(',');
+  for (const part of parts) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+    const rangeMatch = trimmed.match(/^(\d+)\s*[-–]\s*(\d+)$/);
+    if (rangeMatch) {
+      const start = parseInt(rangeMatch[1]);
+      const end = parseInt(rangeMatch[2]);
+      if (start < 1 || end > total || start > end) throw new Error(`ページ範囲 "${trimmed}" が不正です（全${total}ページ）`);
+      for (let i = start; i <= end; i++) indices.add(i - 1);
+    } else {
+      const num = parseInt(trimmed);
+      if (isNaN(num) || num < 1 || num > total) throw new Error(`ページ番号 "${trimmed}" が不正です（全${total}ページ）`);
+      indices.add(num - 1);
+    }
+  }
+  return [...indices].sort((a, b) => a - b);
 }
 
 // ===== 画像→PDF =====
@@ -309,8 +524,8 @@ async function doImg2Pdf() {
     for (const item of files) {
       const buf = await item.file.arrayBuffer();
       const bytes = new Uint8Array(buf);
-      let img;
       const ext = item.file.name.toLowerCase();
+      let img;
       if (ext.endsWith('.png')) {
         img = await pdfDoc.embedPng(bytes);
       } else {
@@ -320,8 +535,11 @@ async function doImg2Pdf() {
       page.drawImage(img, { x: 0, y: 0, width: img.width, height: img.height });
     }
     const pdfBytes = await pdfDoc.save();
-    download(pdfBytes, 'images_' + dateStr() + '.pdf', 'application/pdf');
+    lastOutputName = 'images_' + dateStr() + '.pdf';
+    lastOutputBlob = new Blob([pdfBytes], { type: 'application/pdf' });
+    downloadBlob(lastOutputBlob, lastOutputName);
     setStatus(`変換完了！ ${files.length}画像 → PDF`, 'success');
+    showOutputActions();
   } catch (e) { setStatus('変換に失敗しました: ' + e.message, 'error'); }
   actionBtn.disabled = files.length < 1;
 }
@@ -338,7 +556,6 @@ async function doPdf2Img() {
     const scale = parseFloat(document.getElementById('pdfScale').value);
     const buf = await files[0].file.arrayBuffer();
 
-    // pdf.jsを動的に読み込み
     if (!window.pdfjsLib) {
       await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
       pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -362,25 +579,21 @@ async function doPdf2Img() {
       const quality = format === 'jpeg' ? 0.92 : undefined;
       const dataUrl = canvas.toDataURL(mimeType, quality);
 
-      // プレビュー表示
       const img = document.createElement('img');
       img.src = dataUrl;
       img.title = `${i}ページ目`;
       previewArea.appendChild(img);
 
-      // Blob化
       const blob = await (await fetch(dataUrl)).blob();
       imageFiles.push({ blob, name: `page_${String(i).padStart(3,'0')}.${format}` });
     }
 
-    // 1ページなら直接ダウンロード、複数ページならZIP
     if (imageFiles.length === 1) {
       const url = URL.createObjectURL(imageFiles[0].blob);
       const a = document.createElement('a');
       a.href = url; a.download = imageFiles[0].name; a.click();
       URL.revokeObjectURL(url);
     } else {
-      // 複数ページ: 個別ダウンロードリンク表示
       const dlDiv = document.createElement('div');
       dlDiv.style.cssText = 'text-align:center;margin-top:12px;';
       dlDiv.innerHTML = '<strong>各ページをクリックでダウンロード:</strong><br>';
@@ -392,7 +605,6 @@ async function doPdf2Img() {
         a.style.cssText = 'display:inline-block;margin:4px 8px;color:#4a90d9;';
         dlDiv.appendChild(a);
       });
-      // 一括ダウンロードボタン
       const allBtn = document.createElement('button');
       allBtn.className = 'secondary';
       allBtn.textContent = '全ページ一括ダウンロード';
@@ -414,9 +626,62 @@ async function doPdf2Img() {
   actionBtn.disabled = files.length < 1;
 }
 
+// ===== Office→PDF（印刷ダイアログ） =====
+function doOfficePrint() {
+  if (officePreview.style.display === 'none' || !officePreview.innerHTML) {
+    setStatus('先にファイルを読み込んでください', 'error');
+    return;
+  }
+  const printWindow = window.open('', '_blank');
+  printWindow.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="UTF-8">
+    <title>${files[0]?.file.name || 'Office文書'}</title>
+    <style>
+      body { font-family: 'Yu Gothic', 'Meiryo', sans-serif; padding: 20px; font-size: 14px; line-height: 1.6; color: #333; }
+      table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+      td, th { border: 1px solid #999; padding: 6px 10px; font-size: 13px; }
+      th { background: #f0f0f0; }
+      h3 { margin: 20px 0 8px; }
+      @media print { body { padding: 0; } }
+    </style>
+  </head><body>${officePreview.innerHTML}</body></html>`);
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => printWindow.print(), 500);
+}
+
+// ===== 出力後アクション =====
+function showOutputActions() {
+  document.getElementById('outputActions').className = 'output-actions show';
+}
+function hideOutputActions() {
+  document.getElementById('outputActions').className = 'output-actions';
+  document.getElementById('pdfPreviewFrame').style.display = 'none';
+}
+
+function previewOutput() {
+  if (!lastOutputBlob) return;
+  const frame = document.getElementById('pdfPreviewFrame');
+  const url = URL.createObjectURL(lastOutputBlob);
+  frame.src = url;
+  frame.style.display = 'block';
+  frame.scrollIntoView({ behavior: 'smooth' });
+}
+
+function printOutput() {
+  if (!lastOutputBlob) return;
+  const url = URL.createObjectURL(lastOutputBlob);
+  const printWindow = window.open(url);
+  printWindow.addEventListener('load', () => { printWindow.focus(); printWindow.print(); });
+}
+
+function downloadOutput() {
+  if (!lastOutputBlob) return;
+  downloadBlob(lastOutputBlob, lastOutputName);
+}
+
 // ===== ユーティリティ =====
-function download(bytes, name, type) {
-  const blob = new Blob([bytes], { type });
+function downloadBlob(blob, name) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href = url; a.download = name; a.click();
   URL.revokeObjectURL(url);
