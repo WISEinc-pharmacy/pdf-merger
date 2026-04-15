@@ -254,13 +254,13 @@ function switchMode(mode) {
     document.getElementById('dropHint').textContent = 'またはクリックしてファイルを選択（複数可）';
     fileInput.accept = '.pdf';
     fileInput.multiple = true;
-    actionBtn.textContent = '結合してダウンロード';
+    actionBtn.textContent = 'PDF結合を実行';
   } else if (mode === 'split') {
     document.getElementById('dropText').textContent = 'ここにPDFファイルをドラッグ＆ドロップ';
     document.getElementById('dropHint').textContent = '分割したいPDFを1つ選択';
     fileInput.accept = '.pdf';
     fileInput.multiple = false;
-    actionBtn.textContent = '分割してダウンロード';
+    actionBtn.textContent = 'PDF分割を実行';
     document.getElementById('splitRange').value = '';
     document.getElementById('splitHint').textContent = 'PDFをドロップすると総ページ数が表示されます';
   } else if (mode === 'img2pdf') {
@@ -268,13 +268,13 @@ function switchMode(mode) {
     document.getElementById('dropHint').textContent = 'JPEG / PNG対応（複数可・順番変更可）';
     fileInput.accept = '.jpg,.jpeg,.png,.gif,.bmp,.webp';
     fileInput.multiple = true;
-    actionBtn.textContent = 'PDFに変換してダウンロード';
+    actionBtn.textContent = '画像→PDF変換を実行';
   } else if (mode === 'pdf2img') {
     document.getElementById('dropText').textContent = 'ここにPDFファイルをドラッグ＆ドロップ';
     document.getElementById('dropHint').textContent = '1つのPDFを画像に変換します';
     fileInput.accept = '.pdf';
     fileInput.multiple = false;
-    actionBtn.textContent = '画像に変換してダウンロード';
+    actionBtn.textContent = 'PDF→画像変換を実行';
   } else if (mode === 'office2pdf') {
     document.getElementById('dropText').textContent = 'ここにWord / Excelファイルをドラッグ＆ドロップ';
     document.getElementById('dropHint').textContent = '.docx / .xlsx / .xls 対応';
@@ -453,9 +453,8 @@ async function doMerge() {
     const bytes = await merged.save();
     lastOutputName = 'merged_' + dateStr() + '.pdf';
     lastOutputBlob = new Blob([bytes], { type: 'application/pdf' });
-    downloadBlob(lastOutputBlob, lastOutputName);
     const totalPages = files.reduce((s, f) => s + f.pageCount, 0);
-    setStatus(`結合完了！ ${files.length}ファイル → ${totalPages}ページ`, 'success');
+    setStatus(`結合完了！ ${files.length}ファイル → ${totalPages}ページ — 下のボタンからプレビュー・印刷・ダウンロードできます`, 'success');
     showOutputActions();
   } catch (e) { setStatus('結合に失敗しました: ' + e.message, 'error'); }
   actionBtn.disabled = files.length < 2;
@@ -486,8 +485,7 @@ async function doSplit() {
     const bytes = await newDoc.save();
     lastOutputName = 'split_' + dateStr() + '.pdf';
     lastOutputBlob = new Blob([bytes], { type: 'application/pdf' });
-    downloadBlob(lastOutputBlob, lastOutputName);
-    setStatus(`分割完了！ ${pageIndices.length}ページを抽出しました`, 'success');
+    setStatus(`分割完了！ ${pageIndices.length}ページを抽出 — 下のボタンからプレビュー・印刷・ダウンロードできます`, 'success');
     showOutputActions();
   } catch (e) { setStatus('分割に失敗しました: ' + e.message, 'error'); }
   actionBtn.disabled = false;
@@ -537,8 +535,7 @@ async function doImg2Pdf() {
     const pdfBytes = await pdfDoc.save();
     lastOutputName = 'images_' + dateStr() + '.pdf';
     lastOutputBlob = new Blob([pdfBytes], { type: 'application/pdf' });
-    downloadBlob(lastOutputBlob, lastOutputName);
-    setStatus(`変換完了！ ${files.length}画像 → PDF`, 'success');
+    setStatus(`変換完了！ ${files.length}画像 → PDF — 下のボタンからプレビュー・印刷・ダウンロードできます`, 'success');
     showOutputActions();
   } catch (e) { setStatus('変換に失敗しました: ' + e.message, 'error'); }
   actionBtn.disabled = files.length < 1;
