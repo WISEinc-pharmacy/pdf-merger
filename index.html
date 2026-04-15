@@ -202,7 +202,7 @@
 
   <div class="actions">
     <button class="secondary" id="clearBtn" style="display:none">すべてクリア</button>
-    <button class="primary" id="actionBtn" disabled>結合してダウンロード</button>
+    <button class="primary" id="actionBtn" disabled>出力</button>
   </div>
 
   <div class="status" id="status"></div>
@@ -254,13 +254,13 @@ function switchMode(mode) {
     document.getElementById('dropHint').textContent = 'またはクリックしてファイルを選択（複数可）';
     fileInput.accept = '.pdf';
     fileInput.multiple = true;
-    actionBtn.textContent = 'PDF結合を実行';
+    actionBtn.textContent = '出力';
   } else if (mode === 'split') {
     document.getElementById('dropText').textContent = 'ここにPDFファイルをドラッグ＆ドロップ';
     document.getElementById('dropHint').textContent = '分割したいPDFを1つ選択';
     fileInput.accept = '.pdf';
     fileInput.multiple = false;
-    actionBtn.textContent = 'PDF分割を実行';
+    actionBtn.textContent = '出力';
     document.getElementById('splitRange').value = '';
     document.getElementById('splitHint').textContent = 'PDFをドロップすると総ページ数が表示されます';
   } else if (mode === 'img2pdf') {
@@ -268,19 +268,19 @@ function switchMode(mode) {
     document.getElementById('dropHint').textContent = 'JPEG / PNG対応（複数可・順番変更可）';
     fileInput.accept = '.jpg,.jpeg,.png,.gif,.bmp,.webp';
     fileInput.multiple = true;
-    actionBtn.textContent = '画像→PDF変換を実行';
+    actionBtn.textContent = '出力';
   } else if (mode === 'pdf2img') {
     document.getElementById('dropText').textContent = 'ここにPDFファイルをドラッグ＆ドロップ';
     document.getElementById('dropHint').textContent = '1つのPDFを画像に変換します';
     fileInput.accept = '.pdf';
     fileInput.multiple = false;
-    actionBtn.textContent = 'PDF→画像変換を実行';
+    actionBtn.textContent = '出力';
   } else if (mode === 'office2pdf') {
     document.getElementById('dropText').textContent = 'ここにWord / Excelファイルをドラッグ＆ドロップ';
     document.getElementById('dropHint').textContent = '.docx / .xlsx / .xls 対応';
     fileInput.accept = '.docx,.xlsx,.xls';
     fileInput.multiple = false;
-    actionBtn.textContent = '印刷 / PDF保存';
+    actionBtn.textContent = '出力';
   }
 }
 
