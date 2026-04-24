@@ -156,6 +156,37 @@
     <label><input type="radio" name="mode" value="img2pdf" onchange="switchMode('img2pdf')"><span>画像→PDF</span></label>
     <label><input type="radio" name="mode" value="pdf2img" onchange="switchMode('pdf2img')"><span>PDF→画像</span></label>
     <label><input type="radio" name="mode" value="office2pdf" onchange="switchMode('office2pdf')"><span>Office→PDF</span></label>
+    <label><input type="radio" name="mode" value="fontfix" onchange="switchMode('fontfix')"><span>フォント変換</span></label>
+  </div>
+
+  <!-- フォント変換 情報 -->
+  <div class="warning-banner" id="fontfixInfo" style="background:#ebf8ff;border-color:#3182ce;color:#2c5282;">
+    <strong>使い方：</strong>報告書PDFをドラッグ&ドロップ → 「変換開始」→ ダウンロード。<br>
+    フォントが全て画像化されるため、楽楽明細の郵送代行で文字化けしません。複数ファイル一括OK。
+  </div>
+
+  <!-- フォント変換 判定基準 -->
+  <div class="warning-banner" id="fontfixCriteria" style="background:#fff;border-color:#ddd;color:#333;line-height:1.7;font-size:13px;">
+    <details>
+      <summary style="font-weight:600;color:#2c7a7b;cursor:pointer;">楽楽明細 郵送代行 フォント判定基準を確認する</summary>
+      <div style="margin-top:12px;">
+        <div style="margin-bottom:12px;">
+          <h4 style="font-size:13px;font-weight:700;padding:4px 10px;border-radius:4px;background:#c6f6d5;color:#276749;margin-bottom:6px;">郵送代行 OK のケース</h4>
+          <ul style="list-style:none;padding:0;margin:0;">
+            <li style="padding:3px 0 3px 16px;position:relative;"><span style="color:#38a169;font-weight:bold;position:absolute;left:0;">&#10003;</span> フォント情報なし（文書のプロパティ→フォントタブが空欄）</li>
+            <li style="padding:3px 0 3px 16px;position:relative;"><span style="color:#38a169;font-weight:bold;position:absolute;left:0;">&#10003;</span> 埋め込みサブセット or 埋め込み、かつエンコーディングが「ビルトイン以外」</li>
+          </ul>
+        </div>
+        <div style="margin-bottom:12px;">
+          <h4 style="font-size:13px;font-weight:700;padding:4px 10px;border-radius:4px;background:#fed7d7;color:#9b2c2c;margin-bottom:6px;">郵送代行 NG → このツールで変換</h4>
+          <ul style="list-style:none;padding:0;margin:0;">
+            <li style="padding:3px 0 3px 16px;position:relative;"><span style="color:#e53e3e;font-weight:bold;position:absolute;left:0;">&#10007;</span> エンコーディングが「ビルトイン」</li>
+            <li style="padding:3px 0 3px 16px;position:relative;"><span style="color:#e53e3e;font-weight:bold;position:absolute;left:0;">&#10007;</span> 「埋め込みサブセット or 埋め込み」の記載がない</li>
+          </ul>
+        </div>
+        <p style="color:#888;font-size:12px;">※ Acrobat Reader の「ファイル→プロパティ→フォント」で確認できます。</p>
+      </div>
+    </details>
   </div>
 
   <!-- Office→PDF 警告 -->
@@ -192,6 +223,16 @@
     <label>抽出するページ範囲:</label>
     <input type="text" id="splitRange" placeholder="例: 1-3, 5, 7-10">
     <p class="hint" id="splitHint">PDFをドロップすると総ページ数が表示されます</p>
+  </div>
+
+  <!-- フォント変換 DPIオプション -->
+  <div class="convert-options" id="fontfixOptions">
+    <strong>画質：</strong>
+    <div class="option-row">
+      <label><input type="radio" name="fontfixDpi" value="200"> 200 dpi（高速・やや粗い）</label>
+      <label><input type="radio" name="fontfixDpi" value="300" checked> 300 dpi（推奨）</label>
+      <label><input type="radio" name="fontfixDpi" value="400"> 400 dpi（高品質）</label>
+    </div>
   </div>
 
   <!-- Officeプレビュー -->
@@ -248,6 +289,9 @@ function switchMode(mode) {
   document.getElementById('pdf2imgOptions').className = 'convert-options' + (mode === 'pdf2img' ? ' show' : '');
   document.getElementById('splitOptions').className = 'split-options' + (mode === 'split' ? ' show' : '');
   document.getElementById('officeWarning').className = 'warning-banner' + (mode === 'office2pdf' ? ' show' : '');
+  document.getElementById('fontfixInfo').className = 'warning-banner' + (mode === 'fontfix' ? ' show' : '');
+  document.getElementById('fontfixCriteria').className = 'warning-banner' + (mode === 'fontfix' ? ' show' : '');
+  document.getElementById('fontfixOptions').className = 'convert-options' + (mode === 'fontfix' ? ' show' : '');
 
   if (mode === 'merge') {
     document.getElementById('dropText').textContent = 'ここにPDFファイルをドラッグ＆ドロップ';
@@ -281,6 +325,12 @@ function switchMode(mode) {
     fileInput.accept = '.docx,.xlsx,.xls';
     fileInput.multiple = false;
     actionBtn.textContent = '出力';
+  } else if (mode === 'fontfix') {
+    document.getElementById('dropText').textContent = 'ここにPDFファイルをドラッグ＆ドロップ';
+    document.getElementById('dropHint').textContent = '複数ファイル一括変換OK';
+    fileInput.accept = '.pdf';
+    fileInput.multiple = true;
+    actionBtn.textContent = '変換開始';
   }
 }
 
@@ -301,6 +351,7 @@ function handleFiles(newFiles) {
   else if (currentMode === 'img2pdf') addImageFiles(newFiles.filter(f => /\.(jpe?g|png|gif|bmp|webp)$/i.test(f.name)));
   else if (currentMode === 'pdf2img') { files = []; addPdfFiles(newFiles.filter(f => f.name.toLowerCase().endsWith('.pdf')).slice(0, 1)); }
   else if (currentMode === 'office2pdf') { files = []; addOfficeFiles(newFiles.filter(f => /\.(docx|xlsx|xls)$/i.test(f.name)).slice(0, 1)); }
+  else if (currentMode === 'fontfix') addPdfFiles(newFiles.filter(f => f.name.toLowerCase().endsWith('.pdf')));
 }
 
 // ===== PDF読み込み =====
@@ -402,6 +453,8 @@ function renderList() {
     actionBtn.disabled = files.length < 1;
   } else if (currentMode === 'office2pdf') {
     actionBtn.disabled = files.length < 1;
+  } else if (currentMode === 'fontfix') {
+    actionBtn.disabled = files.length < 1;
   }
   clearBtn.style.display = files.length > 0 ? '' : 'none';
 }
@@ -435,6 +488,7 @@ actionBtn.addEventListener('click', () => {
   else if (currentMode === 'img2pdf') doImg2Pdf();
   else if (currentMode === 'pdf2img') doPdf2Img();
   else if (currentMode === 'office2pdf') doOfficePrint();
+  else if (currentMode === 'fontfix') doFontFix();
 });
 
 // ===== PDF結合 =====
@@ -645,6 +699,104 @@ function doOfficePrint() {
   printWindow.document.close();
   printWindow.focus();
   setTimeout(() => printWindow.print(), 500);
+}
+
+// ===== フォント変換（楽楽明細対応） =====
+async function doFontFix() {
+  if (files.length < 1) return;
+  actionBtn.disabled = true;
+  actionBtn.textContent = '変換中...';
+  hideOutputActions();
+
+  const dpi = parseInt(document.querySelector('input[name="fontfixDpi"]:checked').value);
+  const scale = dpi / 72;
+  let successCount = 0;
+  let convertedFiles = [];
+
+  if (!window.pdfjsLib) {
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+
+  for (let i = 0; i < files.length; i++) {
+    const item = files[i];
+    setStatus(`変換中... (${i + 1}/${files.length}) ${item.file.name}`);
+    try {
+      const arrayBuffer = await item.file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const totalPages = pdf.numPages;
+      const doc = await PDFLib.PDFDocument.create();
+
+      for (let p = 1; p <= totalPages; p++) {
+        setStatus(`変換中... (${i + 1}/${files.length}) ${item.file.name} - ${p}/${totalPages}ページ`);
+        const page = await pdf.getPage(p);
+        const viewport = page.getViewport({ scale });
+        const origViewport = page.getViewport({ scale: 1 });
+
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        await page.render({ canvasContext: ctx, viewport }).promise;
+
+        const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.92);
+        const jpegBytes = Uint8Array.from(atob(jpegDataUrl.split(',')[1]), c => c.charCodeAt(0));
+        const image = await doc.embedJpg(jpegBytes);
+        const newPage = doc.addPage([origViewport.width, origViewport.height]);
+        newPage.drawImage(image, { x: 0, y: 0, width: origViewport.width, height: origViewport.height });
+
+        await new Promise(r => setTimeout(r, 10));
+      }
+
+      const pdfBytes = await doc.save();
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const name = item.file.name.replace('.pdf', '_変換済.pdf');
+      convertedFiles.push({ blob, name });
+      successCount++;
+    } catch (e) {
+      setStatus(`${item.file.name} の変換に失敗: ${e.message}`, 'error');
+    }
+  }
+
+  if (convertedFiles.length === 1) {
+    lastOutputBlob = convertedFiles[0].blob;
+    lastOutputName = convertedFiles[0].name;
+    setStatus(`変換完了！ 下のボタンからプレビュー・印刷・ダウンロードできます`, 'success');
+    showOutputActions();
+  } else if (convertedFiles.length > 1) {
+    // 複数ファイル: 個別ダウンロード + 全ダウンロード
+    lastOutputBlob = convertedFiles[0].blob;
+    lastOutputName = convertedFiles[0].name;
+    setStatus(`${successCount}ファイル変換完了！`, 'success');
+    showOutputActions();
+
+    // 個別ダウンロードリンクを表示
+    const dlDiv = document.createElement('div');
+    dlDiv.style.cssText = 'text-align:center;margin-top:12px;';
+    convertedFiles.forEach((f, idx) => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(f.blob);
+      a.download = f.name;
+      a.textContent = f.name;
+      a.style.cssText = 'display:block;margin:4px 8px;color:#4a90d9;font-size:14px;';
+      dlDiv.appendChild(a);
+    });
+    const allBtn = document.createElement('button');
+    allBtn.className = 'secondary';
+    allBtn.textContent = '全てダウンロード';
+    allBtn.style.cssText = 'margin-top:12px;';
+    allBtn.addEventListener('click', () => {
+      convertedFiles.forEach(f => downloadBlob(f.blob, f.name));
+    });
+    dlDiv.appendChild(allBtn);
+    previewArea.innerHTML = '';
+    previewArea.appendChild(dlDiv);
+  }
+
+  actionBtn.textContent = '変換開始';
+  actionBtn.disabled = files.length < 1;
 }
 
 // ===== 出力後アクション =====
