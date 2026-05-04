@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PDFツール</title>
 <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -752,7 +753,7 @@ async function doFontFix() {
 
       const pdfBytes = await doc.save();
       const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-      const name = item.file.name.replace('.pdf', '_変換済.pdf');
+      const name = renameFontFixed(item.file.name);
       convertedFiles.push({ blob, name });
       successCount++;
     } catch (e) {
@@ -766,31 +767,52 @@ async function doFontFix() {
     setStatus(`変換完了！ 下のボタンからプレビュー・印刷・ダウンロードできます`, 'success');
     showOutputActions();
   } else if (convertedFiles.length > 1) {
-    // 複数ファイル: 個別ダウンロード + 全ダウンロード
+    // 複数ファイル: 個別ダウンロード + ZIP一括ダウンロード
     lastOutputBlob = convertedFiles[0].blob;
     lastOutputName = convertedFiles[0].name;
     setStatus(`${successCount}ファイル変換完了！`, 'success');
     showOutputActions();
 
-    // 個別ダウンロードリンクを表示
     const dlDiv = document.createElement('div');
     dlDiv.style.cssText = 'text-align:center;margin-top:12px;';
+
+    // ZIP一括ダウンロードボタン（最上部に配置）
+    const zipBtn = document.createElement('button');
+    zipBtn.className = 'primary';
+    zipBtn.textContent = 'ZIPで一括ダウンロード';
+    zipBtn.style.cssText = 'margin-bottom:16px;';
+    zipBtn.addEventListener('click', async () => {
+      zipBtn.disabled = true;
+      zipBtn.textContent = 'ZIP作成中...';
+      try {
+        const zip = new JSZip();
+        for (const f of convertedFiles) {
+          zip.file(f.name, f.blob);
+        }
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        downloadBlob(zipBlob, '報告書_変換済_' + dateStr() + '.zip');
+        zipBtn.textContent = 'ZIPで一括ダウンロード';
+      } catch (e) {
+        setStatus('ZIP作成に失敗: ' + e.message, 'error');
+        zipBtn.textContent = 'ZIPで一括ダウンロード';
+      }
+      zipBtn.disabled = false;
+    });
+    dlDiv.appendChild(zipBtn);
+
+    // 個別ダウンロードリンク
+    const fileListDiv = document.createElement('div');
+    fileListDiv.style.cssText = 'margin-top:8px;';
     convertedFiles.forEach((f, idx) => {
       const a = document.createElement('a');
       a.href = URL.createObjectURL(f.blob);
       a.download = f.name;
       a.textContent = f.name;
       a.style.cssText = 'display:block;margin:4px 8px;color:#4a90d9;font-size:14px;';
-      dlDiv.appendChild(a);
+      fileListDiv.appendChild(a);
     });
-    const allBtn = document.createElement('button');
-    allBtn.className = 'secondary';
-    allBtn.textContent = '全てダウンロード';
-    allBtn.style.cssText = 'margin-top:12px;';
-    allBtn.addEventListener('click', () => {
-      convertedFiles.forEach(f => downloadBlob(f.blob, f.name));
-    });
-    dlDiv.appendChild(allBtn);
+    dlDiv.appendChild(fileListDiv);
+
     previewArea.innerHTML = '';
     previewArea.appendChild(dlDiv);
   }
@@ -837,6 +859,20 @@ function downloadBlob(blob, name) {
 }
 
 function dateStr() { return new Date().toISOString().slice(0,10).replace(/-/g,''); }
+
+// フォント変換後のファイル名自動整形（楽楽明細用）
+// 例: テスト_3403_訪問日20260318.pdf → R-3403_20260318_変換済.pdf
+function renameFontFixed(originalName) {
+  const base = originalName.replace(/\.pdf$/i, '');
+  // 施設コード（3-6桁の数字）と訪問日（8桁の数字）を抽出
+  const codeMatch = base.match(/[_](\d{3,6})[_]/);
+  const dateMatch = base.match(/(\d{8})/);
+  if (codeMatch && dateMatch) {
+    return `R-${codeMatch[1]}_${dateMatch[1]}_変換済.pdf`;
+  }
+  // パターンにマッチしない場合は従来通り
+  return base + '_変換済.pdf';
+}
 
 function setStatus(msg, type) {
   statusEl.textContent = msg;
