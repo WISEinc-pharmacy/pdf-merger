@@ -151,6 +151,20 @@
 <div class="container">
   <h1>PDFツール</h1>
 
+  <div style="background:#fff;border:1px solid #ddd;border-radius:10px;padding:16px 20px;margin-bottom:20px;font-size:13px;line-height:1.8;">
+    <strong style="font-size:14px;">このツールでできること</strong>
+    <ul style="margin:8px 0 0 20px;padding:0;">
+      <li><b>PDF結合</b> — 複数のPDFを1つにまとめます。ドラッグで順番を変更できます</li>
+      <li><b>PDF分割</b> — ページ範囲を指定して、必要な部分だけ抽出します</li>
+      <li><b>画像→PDF</b> — JPEG・PNG画像をPDFに変換します。複数画像を1つのPDFにまとめることも可能</li>
+      <li><b>PDF→画像</b> — PDFの各ページをJPEGまたはPNG画像に変換します。解像度（dpi）を選択できます</li>
+      <li><b>Office→PDF</b> — Word・Excelファイルを簡易的にPDFへ変換します（複雑なレイアウトは印刷経由が確実）</li>
+      <li><b>フォント変換</b> — テキストを全ページ画像化し、楽楽明細の郵送代行で文字化けしないPDFに変換します</li>
+      <li><b>AI要約</b> — PDFの内容をAIが読み取り、要点をまとめて表示します（近日追加予定）</li>
+    </ul>
+    <p style="margin-top:8px;color:#888;font-size:12px;">※ すべてブラウザ内で処理されます。ファイルが外部に送信されることはありません（AI要約を除く）。</p>
+  </div>
+
   <div class="mode-bar">
     <label><input type="radio" name="mode" value="merge" checked onchange="switchMode('merge')"><span>PDF結合</span></label>
     <label><input type="radio" name="mode" value="split" onchange="switchMode('split')"><span>PDF分割</span></label>
