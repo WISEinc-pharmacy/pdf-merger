@@ -161,6 +161,7 @@
       <li><b>Office→PDF</b> — Word・Excelファイルを簡易的にPDFへ変換します（複雑なレイアウトは印刷経由が確実）</li>
       <li><b>フォント変換</b> — テキストを全ページ画像化し、楽楽明細の郵送代行で文字化けしないPDFに変換します</li>
       <li><b>ベクター化（.ai/.svg）</b> — JPG・PNG画像（ロゴ・線画）をベクター形式に変換します。Illustratorで開ける.aiファイルをブラウザ内で生成します</li>
+      <li><b>送付先付番</b> — 送付先フォルダ内の全PDFに、送付先ごとの番号を自動で付けます（楽楽明細の配信先判定用）。送付先マスタ表はツール内で入力・保存できます</li>
       <li><b>AI要約</b> — PDFの内容をAIが読み取り、要点をまとめて表示します（近日追加予定）</li>
     </ul>
     <p style="margin-top:8px;color:#888;font-size:12px;">※ すべてブラウザ内で処理されます。ファイルが外部に送信されることはありません（AI要約を除く）。</p>
@@ -174,6 +175,7 @@
     <label><input type="radio" name="mode" value="office2pdf" onchange="switchMode('office2pdf')"><span>Office→PDF</span></label>
     <label><input type="radio" name="mode" value="fontfix" onchange="switchMode('fontfix')"><span>フォント変換<br><small style="font-size:10px;opacity:0.8;">楽楽明細対応</small></span></label>
     <label><input type="radio" name="mode" value="vectorize" onchange="switchMode('vectorize')"><span>ベクター化<br><small style="font-size:10px;opacity:0.8;">.ai / .svg</small></span></label>
+    <label><input type="radio" name="mode" value="rename" onchange="switchMode('rename')"><span>送付先付番<br><small style="font-size:10px;opacity:0.8;">楽楽明細対応</small></span></label>
   </div>
 
   <!-- フォント変換 情報 -->
@@ -278,13 +280,81 @@
     <p style="margin-top:8px;font-size:12px;color:#888;">※ 大きな画像は変換に数秒かかります。ロゴ・線画（シンプルな絵）向け。写真は向きません。</p>
   </div>
 
+  <!-- ===== 送付先付番 モード（専用セクション） ===== -->
+  <div id="renameSection" style="display:none;">
+    <div class="warning-banner show" style="background:#ebf8ff;border-color:#3182ce;color:#2c5282;">
+      <strong>使い方：</strong>①下の「送付先マスタ」に <b>送付先名（フォルダ名に含まれる語）と番号</b> を入力 → ②送付先フォルダをドロップ → ③「付番してZIP出力」。<br>
+      フォルダ内の全PDFのファイル名に、その送付先の番号が自動で付きます。<b>マスタと処理はすべてこのPC内で完結</b>し、外部やネットには一切送信されません。
+    </div>
+
+    <!-- 送付先マスタ -->
+    <div style="background:#fff;border:1px solid #ddd;border-radius:10px;padding:16px 18px;margin-bottom:20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+        <strong style="font-size:15px;">送付先マスタ（送付先名 → 番号の対応表）</strong>
+        <span style="font-size:12px;color:#888;">自動保存（このブラウザに保存されます）</span>
+      </div>
+      <div style="overflow-x:auto;">
+        <table id="masterTable" style="width:100%;border-collapse:collapse;font-size:14px;min-width:420px;">
+          <thead>
+            <tr style="background:#f4f6f9;">
+              <th style="text-align:left;padding:8px 10px;border-bottom:2px solid #e2e8f0;">送付先名（フォルダ名に含まれる語）</th>
+              <th style="text-align:left;padding:8px 10px;border-bottom:2px solid #e2e8f0;width:140px;">番号</th>
+              <th style="width:44px;border-bottom:2px solid #e2e8f0;"></th>
+            </tr>
+          </thead>
+          <tbody id="masterTbody"></tbody>
+        </table>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;align-items:center;">
+        <button class="secondary" id="masterAddBtn" style="padding:8px 18px;">＋ 行を追加</button>
+        <span style="flex:1;"></span>
+        <button class="secondary" id="masterExportCsvBtn" style="padding:8px 14px;font-size:13px;">CSV書き出し</button>
+        <button class="secondary" id="masterExportJsonBtn" style="padding:8px 14px;font-size:13px;">JSON書き出し</button>
+        <button class="secondary" id="masterImportBtn" style="padding:8px 14px;font-size:13px;">CSV / JSON 読み込み</button>
+        <input type="file" id="masterImportFile" accept=".csv,.json" style="display:none;">
+      </div>
+      <div class="status" id="masterStatus" style="text-align:left;margin-top:8px;"></div>
+    </div>
+
+    <!-- 命名ルール -->
+    <div class="convert-options show" style="margin-bottom:20px;">
+      <strong>ファイル名の付け方：</strong>
+      <div class="option-row" style="flex-wrap:wrap;">
+        <label style="font-size:13px;">テンプレート
+          <input type="text" id="renameTemplate" value="{name}_{code}_{original}" style="width:280px;margin-left:6px;">
+        </label>
+      </div>
+      <p style="font-size:12px;color:#888;margin-top:8px;line-height:1.7;">
+        使える語：<code>{name}</code>=送付先名（マスタの名前） / <code>{folder}</code>=フォルダ名そのまま / <code>{code}</code>=番号 / <code>{original}</code>=元のファイル名<br>
+        例）<code>{name}_{code}_{original}</code> → <b>つなぐ薬局柏_1_1234_訪問日.pdf</b>
+      </p>
+    </div>
+
+    <!-- フォルダ入力 -->
+    <div class="drop-zone" id="renameDropZone">
+      <p>ここに送付先フォルダをドラッグ＆ドロップ</p>
+      <p class="hint">またはクリックしてフォルダを選択（送付先フォルダをまとめた親フォルダでもOK）</p>
+    </div>
+    <input type="file" id="renameFolderInput" webkitdirectory directory multiple style="display:none;">
+
+    <!-- プレビュー -->
+    <div id="renamePreview" style="margin-bottom:16px;"></div>
+
+    <div class="actions">
+      <button class="secondary" id="renameClearBtn" style="display:none;">クリア</button>
+      <button class="primary" id="renameProcessBtn" disabled>付番してZIP出力</button>
+    </div>
+    <div class="status" id="renameStatus"></div>
+    <div id="renameOutput" style="margin-top:12px;"></div>
+  </div>
+
   <!-- Officeプレビュー -->
   <div id="officePreview"></div>
 
   <ul class="file-list" id="fileList"></ul>
   <div class="preview-area" id="previewArea"></div>
 
-  <div class="actions">
+  <div class="actions" id="sharedActions">
     <button class="secondary" id="clearBtn" style="display:none">すべてクリア</button>
     <button class="primary" id="actionBtn" disabled>出力</button>
   </div>
@@ -337,6 +407,13 @@ function switchMode(mode) {
   document.getElementById('fontfixOptions').className = 'convert-options' + (mode === 'fontfix' ? ' show' : '');
   document.getElementById('vectorizeInfo').className = 'warning-banner' + (mode === 'vectorize' ? ' show' : '');
   document.getElementById('vectorizeOptions').className = 'convert-options' + (mode === 'vectorize' ? ' show' : '');
+
+  // 送付先付番モードは専用セクション。共有ウィジェット（ドロップゾーン・出力ボタン）を隠す
+  const isRename = mode === 'rename';
+  document.getElementById('renameSection').style.display = isRename ? 'block' : 'none';
+  dropZone.style.display = isRename ? 'none' : '';
+  document.getElementById('sharedActions').style.display = isRename ? 'none' : '';
+  if (isRename) return; // 共有UIの初期化は不要
 
   if (mode === 'merge') {
     document.getElementById('dropText').textContent = 'ここにPDFファイルをドラッグ＆ドロップ';
@@ -1073,6 +1150,339 @@ async function svgToAi(svgStr) {
 document.getElementById('bwMode').addEventListener('change', function () {
   document.getElementById('colorOptions').style.display = this.checked ? 'none' : '';
 });
+
+/* ==================================================================
+   送付先付番モード
+   送付先フォルダ内の全PDFに、送付先ごとの番号をファイル名へ付番する。
+   マスタ（送付先名→番号）はlocalStorageに保存（このブラウザ内のみ）。
+   ================================================================== */
+const MASTER_KEY = 'pdfmerger_soufusaki_master_v1';
+let masterData = [];      // [{ name, code }]
+let renameItems = [];     // [{ file, relPath, folderName }]
+
+// ---- マスタの読み書き ----
+function loadMaster() {
+  try {
+    const raw = localStorage.getItem(MASTER_KEY);
+    masterData = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(masterData)) masterData = [];
+  } catch (e) { masterData = []; }
+}
+function saveMaster() {
+  try { localStorage.setItem(MASTER_KEY, JSON.stringify(masterData)); }
+  catch (e) { setMasterStatus('保存に失敗しました: ' + e.message, 'error'); }
+}
+function setMasterStatus(msg, type) {
+  const el = document.getElementById('masterStatus');
+  el.textContent = msg;
+  el.className = 'status' + (type ? ' ' + type : '');
+}
+
+// ---- マスタ表の描画 ----
+function renderMasterTable() {
+  const tbody = document.getElementById('masterTbody');
+  tbody.innerHTML = '';
+  if (masterData.length === 0) masterData.push({ name: '', code: '' });
+  masterData.forEach((row, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="padding:4px 6px;border-bottom:1px solid #eee;">
+        <input type="text" class="m-name" data-i="${i}" value="${escAttr(row.name)}" placeholder="例: あじさいクリニック"
+          style="width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:6px;font-size:14px;">
+      </td>
+      <td style="padding:4px 6px;border-bottom:1px solid #eee;">
+        <input type="text" class="m-code" data-i="${i}" value="${escAttr(row.code)}" placeholder="例: 101"
+          style="width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:6px;font-size:14px;">
+      </td>
+      <td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:center;">
+        <button class="m-del" data-i="${i}" title="削除"
+          style="background:none;border:none;color:#c44;font-size:18px;cursor:pointer;line-height:1;">&times;</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+  // 入力→即保存（フォーカスを保ったまま配列だけ更新）
+  tbody.querySelectorAll('.m-name').forEach(inp => inp.addEventListener('input', e => {
+    masterData[+e.target.dataset.i].name = e.target.value; saveMaster(); refreshRenamePreview();
+  }));
+  tbody.querySelectorAll('.m-code').forEach(inp => inp.addEventListener('input', e => {
+    masterData[+e.target.dataset.i].code = e.target.value; saveMaster(); refreshRenamePreview();
+  }));
+  tbody.querySelectorAll('.m-del').forEach(btn => btn.addEventListener('click', e => {
+    masterData.splice(+e.target.dataset.i, 1); saveMaster(); renderMasterTable(); refreshRenamePreview();
+  }));
+}
+function escAttr(s) { return String(s == null ? '' : s).replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+
+// ---- CSV 入出力 ----
+function toCsvField(s) {
+  s = String(s == null ? '' : s);
+  return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function masterToCsv() {
+  const rows = masterData.filter(r => r.name || r.code);
+  return '送付先名,番号\n' + rows.map(r => toCsvField(r.name) + ',' + toCsvField(r.code)).join('\n');
+}
+function parseCsv(text) {
+  // ダブルクオート対応の簡易CSVパーサ
+  const rows = []; let row = [], field = '', inQ = false;
+  text = text.replace(/^﻿/, ''); // BOM除去
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQ = false; }
+      else field += c;
+    } else {
+      if (c === '"') inQ = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n' || c === '\r') {
+        if (c === '\r' && text[i + 1] === '\n') i++;
+        row.push(field); rows.push(row); row = []; field = '';
+      } else field += c;
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(v => v.trim() !== ''));
+}
+function importMasterFromRows(rows) {
+  // 1行目がヘッダ（送付先名/番号 等）なら飛ばす
+  let start = 0;
+  if (rows.length && /送付先|名前|name|番号|code|コード/i.test((rows[0][0] || '') + (rows[0][1] || ''))) start = 1;
+  const next = [];
+  for (let i = start; i < rows.length; i++) {
+    const name = (rows[i][0] || '').trim();
+    const code = (rows[i][1] || '').trim();
+    if (name || code) next.push({ name, code });
+  }
+  return next;
+}
+
+// ---- フォルダ読み込み ----
+document.getElementById('renameFolderInput').addEventListener('change', e => {
+  const collected = [...e.target.files].map(f => ({ file: f, relPath: f.webkitRelativePath || f.name }));
+  ingestRenameFiles(collected);
+  e.target.value = '';
+});
+const renameDropZone = document.getElementById('renameDropZone');
+renameDropZone.addEventListener('click', () => document.getElementById('renameFolderInput').click());
+renameDropZone.addEventListener('dragover', e => { e.preventDefault(); renameDropZone.classList.add('dragover'); });
+renameDropZone.addEventListener('dragleave', () => renameDropZone.classList.remove('dragover'));
+renameDropZone.addEventListener('drop', async e => {
+  e.preventDefault();
+  renameDropZone.classList.remove('dragover');
+  setRenameStatus('フォルダを読み込み中...');
+  const collected = [];
+  const entries = [];
+  for (const it of e.dataTransfer.items) {
+    const entry = it.webkitGetAsEntry && it.webkitGetAsEntry();
+    if (entry) entries.push(entry);
+  }
+  try {
+    if (entries.length) { for (const en of entries) await traverseEntry(en, '', collected); }
+    else { for (const f of e.dataTransfer.files) collected.push({ file: f, relPath: f.name }); }
+    ingestRenameFiles(collected);
+  } catch (err) { setRenameStatus('読み込みに失敗しました: ' + err.message, 'error'); }
+});
+
+function traverseEntry(entry, prefix, out) {
+  return new Promise((resolve, reject) => {
+    if (entry.isFile) {
+      entry.file(f => { out.push({ file: f, relPath: (prefix ? prefix + '/' : '') + entry.name }); resolve(); }, reject);
+    } else if (entry.isDirectory) {
+      const reader = entry.createReader();
+      const all = [];
+      const readBatch = () => reader.readEntries(async (batch) => {
+        if (!batch.length) {
+          for (const child of all) await traverseEntry(child, (prefix ? prefix + '/' : '') + entry.name, out);
+          resolve();
+        } else { all.push(...batch); readBatch(); }
+      }, reject);
+      readBatch();
+    } else resolve();
+  });
+}
+
+function ingestRenameFiles(collected) {
+  const pdfs = collected.filter(c => /\.pdf$/i.test(c.file.name));
+  const skipped = collected.length - pdfs.length;
+  renameItems = pdfs.map(c => {
+    const segs = c.relPath.split('/').filter(Boolean);
+    const folderName = segs.length >= 2 ? segs[segs.length - 2] : ''; // PDFの直上フォルダ＝送付先
+    return { file: c.file, relPath: c.relPath, folderName };
+  });
+  document.getElementById('renameClearBtn').style.display = renameItems.length ? '' : 'none';
+  let msg = `PDF ${renameItems.length}件を読み込みました`;
+  if (skipped > 0) msg += `（PDF以外 ${skipped}件は対象外）`;
+  setRenameStatus(msg, renameItems.length ? 'success' : 'error');
+  refreshRenamePreview();
+}
+
+// ---- 照合ロジック ----
+function matchMaster(folderName) {
+  if (!folderName) return null;
+  let best = null;
+  for (const m of masterData) {
+    const key = (m.name || '').trim();
+    if (!key || !m.code) continue;
+    if (folderName === key) return m;                 // 完全一致を最優先
+    if (folderName.includes(key)) {                    // 部分一致は最長キーを採用
+      if (!best || key.length > best.name.trim().length) best = m;
+    }
+  }
+  return best;
+}
+function baseName(name) { return name.replace(/\.pdf$/i, ''); }
+function buildNewName(m, originalName, folderName) {
+  const tpl = document.getElementById('renameTemplate').value || '{name}_{code}_{original}';
+  const out = tpl
+    .split('{name}').join(m.name.trim())
+    .split('{folder}').join((folderName || '').trim())
+    .split('{code}').join(String(m.code).trim())
+    .split('{original}').join(baseName(originalName));
+  return out.replace(/[\\/:*?"<>|]/g, '_') + '.pdf'; // ファイル名に使えない文字を除去
+}
+
+// ---- プレビュー描画 ----
+function refreshRenamePreview() {
+  const box = document.getElementById('renamePreview');
+  const btn = document.getElementById('renameProcessBtn');
+  if (renameItems.length === 0) { box.innerHTML = ''; btn.disabled = true; return; }
+
+  // フォルダ単位に集計
+  const groups = {};
+  for (const it of renameItems) (groups[it.folderName] = groups[it.folderName] || []).push(it);
+
+  let matchedFiles = 0, unmatchedFolders = 0;
+  let rows = '';
+  Object.keys(groups).sort().forEach(folder => {
+    const items = groups[folder];
+    const m = matchMaster(folder);
+    const ok = !!m;
+    if (ok) matchedFiles += items.length; else unmatchedFolders++;
+    const sample = m ? buildNewName(m, items[0].file.name, folder) : '—';
+    rows += `<tr>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;">${escHtml(folder || '(フォルダなし)')}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;">${ok ? escHtml(m.name.trim()) : '<span style="color:#c44;">未マッチ</span>'}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center;">${ok ? escHtml(String(m.code)) : '—'}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center;">${items.length}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;font-size:12px;color:#666;">${escHtml(sample)}</td>
+    </tr>`;
+  });
+
+  const warn = unmatchedFolders > 0
+    ? `<div style="background:#fff8e1;border:1px solid #ffd54f;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:13px;color:#795548;">
+         ⚠ <b>${unmatchedFolders}フォルダ</b>がマスタに未登録です（付番されません）。上のマスタに追加すると自動で反映されます。</div>`
+    : '';
+
+  box.innerHTML = warn + `
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:520px;background:#fff;border:1px solid #ddd;border-radius:8px;overflow:hidden;">
+        <thead><tr style="background:#f4f6f9;">
+          <th style="text-align:left;padding:8px;">フォルダ名</th>
+          <th style="text-align:left;padding:8px;">判定送付先</th>
+          <th style="padding:8px;">番号</th>
+          <th style="padding:8px;">PDF数</th>
+          <th style="text-align:left;padding:8px;">付番後の例</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  btn.disabled = matchedFiles === 0;
+}
+function escHtml(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+// ---- 付番実行 → ZIP出力 ----
+async function doRename() {
+  const btn = document.getElementById('renameProcessBtn');
+  btn.disabled = true; btn.textContent = '処理中...';
+  document.getElementById('renameOutput').innerHTML = '';
+  try {
+    const zip = new JSZip();
+    const log = [['フォルダ', '判定送付先', '番号', '元ファイル名', '付番後ファイル名']];
+    let done = 0, skipped = 0;
+    for (let i = 0; i < renameItems.length; i++) {
+      const it = renameItems[i];
+      const m = matchMaster(it.folderName);
+      if (!m) { skipped++; continue; }
+      setRenameStatus(`付番中... ${i + 1}/${renameItems.length}`);
+      const bytes = await it.file.arrayBuffer();
+      const newName = buildNewName(m, it.file.name, it.folderName);
+      const dir = it.relPath.split('/').slice(0, -1).join('/');
+      zip.file((dir ? dir + '/' : '') + newName, bytes);
+      log.push([it.folderName, m.name.trim(), String(m.code), it.file.name, newName]);
+      done++;
+      await new Promise(r => setTimeout(r, 0));
+    }
+    setRenameStatus('ZIPを作成中...');
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    downloadBlob(zipBlob, '送付先付番_' + dateStr() + '.zip');
+
+    // 付番ログCSV
+    const csv = log.map(r => r.map(toCsvField).join(',')).join('\n');
+    const csvBlob = new Blob(['﻿' + csv], { type: 'text/csv' });
+    const out = document.getElementById('renameOutput');
+    out.innerHTML = `<div style="text-align:center;">
+      <p style="color:#2a7a2a;font-size:14px;margin-bottom:8px;">✅ ${done}件を付番しました${skipped ? `（未マッチ ${skipped}件は除外）` : ''}。ZIPをダウンロードしました。</p>
+    </div>`;
+    const csvBtn = document.createElement('button');
+    csvBtn.className = 'secondary';
+    csvBtn.textContent = '付番ログ（CSV）をダウンロード';
+    csvBtn.style.cssText = 'display:block;margin:0 auto;';
+    csvBtn.addEventListener('click', () => downloadBlob(csvBlob, '送付先付番ログ_' + dateStr() + '.csv'));
+    out.querySelector('div').appendChild(csvBtn);
+    setRenameStatus(`完了！ ${done}件付番`, 'success');
+  } catch (e) {
+    setRenameStatus('付番に失敗しました: ' + e.message, 'error');
+  }
+  btn.textContent = '付番してZIP出力';
+  btn.disabled = false;
+  refreshRenamePreview();
+}
+function setRenameStatus(msg, type) {
+  const el = document.getElementById('renameStatus');
+  el.textContent = msg; el.className = 'status' + (type ? ' ' + type : '');
+}
+
+// ---- ボタン配線 ----
+document.getElementById('masterAddBtn').addEventListener('click', () => { masterData.push({ name: '', code: '' }); saveMaster(); renderMasterTable(); });
+document.getElementById('masterExportCsvBtn').addEventListener('click', () => {
+  downloadBlob(new Blob(['﻿' + masterToCsv()], { type: 'text/csv' }), '送付先マスタ_' + dateStr() + '.csv');
+});
+document.getElementById('masterExportJsonBtn').addEventListener('click', () => {
+  const rows = masterData.filter(r => r.name || r.code);
+  downloadBlob(new Blob([JSON.stringify(rows, null, 2)], { type: 'application/json' }), '送付先マスタ_' + dateStr() + '.json');
+});
+document.getElementById('masterImportBtn').addEventListener('click', () => document.getElementById('masterImportFile').click());
+document.getElementById('masterImportFile').addEventListener('change', async e => {
+  const file = e.target.files[0]; e.target.value = '';
+  if (!file) return;
+  try {
+    const text = await file.text();
+    let next;
+    if (/\.json$/i.test(file.name)) {
+      const arr = JSON.parse(text);
+      next = (Array.isArray(arr) ? arr : []).map(r => ({ name: (r.name || '').toString().trim(), code: (r.code != null ? r.code : '').toString().trim() })).filter(r => r.name || r.code);
+    } else {
+      next = importMasterFromRows(parseCsv(text));
+    }
+    if (!next.length) { setMasterStatus('読み込める行がありませんでした', 'error'); return; }
+    if (masterData.some(r => r.name || r.code) && !confirm(`現在のマスタを、読み込む内容（${next.length}件）で置き換えます。よろしいですか？`)) return;
+    masterData = next; saveMaster(); renderMasterTable(); refreshRenamePreview();
+    setMasterStatus(`${next.length}件を読み込みました`, 'success');
+  } catch (err) { setMasterStatus('読み込みに失敗しました: ' + err.message, 'error'); }
+});
+document.getElementById('renameProcessBtn').addEventListener('click', doRename);
+document.getElementById('renameClearBtn').addEventListener('click', () => {
+  renameItems = [];
+  document.getElementById('renamePreview').innerHTML = '';
+  document.getElementById('renameOutput').innerHTML = '';
+  document.getElementById('renameClearBtn').style.display = 'none';
+  document.getElementById('renameProcessBtn').disabled = true;
+  setRenameStatus('');
+});
+
+// 初期化：マスタ読み込み＆描画
+loadMaster();
+renderMasterTable();
 </script>
 </body>
 </html>
