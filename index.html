@@ -283,8 +283,9 @@
   <!-- ===== 送付先付番 モード（専用セクション） ===== -->
   <div id="renameSection" style="display:none;">
     <div class="warning-banner show" style="background:#ebf8ff;border-color:#3182ce;color:#2c5282;">
-      <strong>使い方：</strong>①下の「送付先マスタ」に <b>送付先名（フォルダ名に含まれる語）と番号</b> を入力 → ②送付先フォルダをドロップ → ③「付番してZIP出力」。<br>
-      フォルダ内の全PDFのファイル名に、その送付先の番号が自動で付きます。<b>マスタと処理はすべてこのPC内で完結</b>し、外部やネットには一切送信されません。
+      <strong>使い方：</strong>①下の「送付先マスタ」に <b>送付先名（フォルダ名に含まれる語）と番号</b> を入力 → ②送付先フォルダをドロップ → ③出力ボタンを押す。<br>
+      フォルダ内の全PDFのファイル名に、その送付先の番号が自動で付きます。<b>マスタと処理はすべてこのPC内で完結</b>し、外部やネットには一切送信されません。<br>
+      <b>大量ファイル（数百件以上）の場合は「フォルダへ直接出力（大量ファイル向け・推奨）」を使ってください。</b>ブラウザのメモリを大量消費せずに処理できます。
     </div>
 
     <!-- 送付先マスタ -->
@@ -340,10 +341,15 @@
     <!-- プレビュー -->
     <div id="renamePreview" style="margin-bottom:16px;"></div>
 
-    <div class="actions">
+    <div class="actions" style="flex-wrap:wrap;gap:10px;">
       <button class="secondary" id="renameClearBtn" style="display:none;">クリア</button>
-      <button class="primary" id="renameProcessBtn" disabled>付番してZIP出力</button>
+      <button class="primary" id="renameProcessBtn" disabled>ZIPで出力（少量向け）</button>
+      <button class="primary" id="renameFSABtn" disabled style="background:#2a7a2a;">フォルダへ直接出力（大量ファイル向け・推奨）</button>
     </div>
+    <p style="font-size:12px;color:#555;margin-top:6px;line-height:1.7;">
+      <b>ZIPで出力</b>：全ファイルをまとめてZIPダウンロード。数十件まで向け。<br>
+      <b>フォルダへ直接出力</b>：1件ずつ直接書き出すため大量件数でもメモリ不足になりません。初回に「フォルダへのアクセスを許可しますか？」と表示されたら「許可」を押し、出力先フォルダを選んでください。Chrome・Edge のみ対応。
+    </p>
     <div class="status" id="renameStatus"></div>
     <div id="renameOutput" style="margin-top:12px;"></div>
   </div>
@@ -1345,7 +1351,8 @@ function buildNewName(m, originalName, folderName) {
 function refreshRenamePreview() {
   const box = document.getElementById('renamePreview');
   const btn = document.getElementById('renameProcessBtn');
-  if (renameItems.length === 0) { box.innerHTML = ''; btn.disabled = true; return; }
+  const fsaBtn = document.getElementById('renameFSABtn');
+  if (renameItems.length === 0) { box.innerHTML = ''; btn.disabled = true; fsaBtn.disabled = true; return; }
 
   // フォルダ単位に集計
   const groups = {};
@@ -1387,6 +1394,7 @@ function refreshRenamePreview() {
       </table>
     </div>`;
   btn.disabled = matchedFiles === 0;
+  fsaBtn.disabled = matchedFiles === 0;
 }
 function escHtml(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
@@ -1442,6 +1450,102 @@ function setRenameStatus(msg, type) {
   el.textContent = msg; el.className = 'status' + (type ? ' ' + type : '');
 }
 
+// ---- 付番実行 → フォルダ直接出力（File System Access API版・大量件数向け） ----
+async function doRenameFSA() {
+  if (!window.showDirectoryPicker) {
+    alert('このブラウザはフォルダ直接出力に対応していません。Chrome または Edge をお使いください。\nZIPで出力をご利用ください。');
+    return;
+  }
+  let outDir;
+  try {
+    outDir = await window.showDirectoryPicker({ mode: 'readwrite' });
+  } catch (e) {
+    if (e.name === 'AbortError') return; // ユーザーがキャンセル
+    setRenameStatus('フォルダ選択に失敗しました: ' + e.message, 'error');
+    return;
+  }
+
+  const btn = document.getElementById('renameFSABtn');
+  const zipBtn = document.getElementById('renameProcessBtn');
+  btn.disabled = true; btn.textContent = '処理中...';
+  zipBtn.disabled = true;
+  document.getElementById('renameOutput').innerHTML = '';
+
+  const log = [['フォルダ', '判定送付先', '番号', '元ファイル名', '付番後ファイル名']];
+  let done = 0, skipped = 0;
+  const failed = [];
+
+  try {
+    for (let i = 0; i < renameItems.length; i++) {
+      const it = renameItems[i];
+      const m = matchMaster(it.folderName);
+      if (!m) { skipped++; continue; }
+
+      // 30件ごとにUIを解放してブラウザのフリーズを防止
+      if (i % 30 === 0) {
+        setRenameStatus(`処理中 ${i + 1} / ${renameItems.length}`);
+        await new Promise(r => setTimeout(r, 0));
+      }
+
+      try {
+        const bytes = await it.file.arrayBuffer();
+        const newName = buildNewName(m, it.file.name, it.folderName);
+
+        // 元のフォルダ構造を再現（relPath から最後のファイル名を除いたセグメント群）
+        const segments = it.relPath.split('/').slice(0, -1).filter(s => s.length > 0);
+        let dir = outDir;
+        for (const seg of segments) {
+          dir = await dir.getDirectoryHandle(seg, { create: true });
+        }
+
+        // ファイル書き出し（1件分のArrayBufferのみメモリに保持→書き出し後GC回収）
+        const fh = await dir.getFileHandle(newName, { create: true });
+        const w = await fh.createWritable();
+        await w.write(bytes);
+        await w.close();
+
+        log.push([it.folderName, m.name.trim(), String(m.code), it.file.name, newName]);
+        done++;
+      } catch (fileErr) {
+        failed.push(it.file.name + '（' + fileErr.message + '）');
+      }
+    }
+
+    setRenameStatus('ログCSVを出力中...');
+    await new Promise(r => setTimeout(r, 0));
+
+    // 付番ログCSVを出力フォルダ内に書き出す
+    const csvContent = '﻿' + log.map(r => r.map(toCsvField).join(',')).join('\n');
+    try {
+      const logFh = await outDir.getFileHandle('_付番ログ_' + dateStr() + '.csv', { create: true });
+      const logW = await logFh.createWritable();
+      await logW.write(new Blob([csvContent], { type: 'text/csv' }));
+      await logW.close();
+    } catch (logErr) {
+      // ログ書き出し失敗はメインの成否に影響させない（コンソールに記録）
+      console.warn('付番ログCSVの書き出しに失敗しました:', logErr.message);
+    }
+
+    const failMsg = failed.length > 0
+      ? `<p style="color:#c44;font-size:13px;margin-top:8px;">⚠ 失敗 ${failed.length}件：<br>${failed.map(escHtml).join('<br>')}</p>`
+      : '';
+    const skipMsg = skipped ? `（未マッチ ${skipped}件は除外）` : '';
+    document.getElementById('renameOutput').innerHTML = `<div style="text-align:center;">
+      <p style="color:#2a7a2a;font-size:14px;margin-bottom:8px;">✅ ${done}件を付番してフォルダへ書き出しました${skipMsg}。付番ログ（_付番ログ_日付.csv）も出力先フォルダに保存済みです。</p>
+      ${failMsg}
+    </div>`;
+    setRenameStatus(`完了！ ${done}件付番 / 成功${done}件・失敗${failed.length}件`, done > 0 && failed.length === 0 ? 'success' : 'error');
+
+  } catch (e) {
+    setRenameStatus('フォルダ出力に失敗しました: ' + e.message, 'error');
+  }
+
+  btn.textContent = 'フォルダへ直接出力（大量ファイル向け・推奨）';
+  btn.disabled = false;
+  zipBtn.disabled = renameItems.length === 0;
+  refreshRenamePreview();
+}
+
 // ---- ボタン配線 ----
 document.getElementById('masterAddBtn').addEventListener('click', () => { masterData.push({ name: '', code: '' }); saveMaster(); renderMasterTable(); });
 document.getElementById('masterExportCsvBtn').addEventListener('click', () => {
@@ -1471,12 +1575,14 @@ document.getElementById('masterImportFile').addEventListener('change', async e =
   } catch (err) { setMasterStatus('読み込みに失敗しました: ' + err.message, 'error'); }
 });
 document.getElementById('renameProcessBtn').addEventListener('click', doRename);
+document.getElementById('renameFSABtn').addEventListener('click', doRenameFSA);
 document.getElementById('renameClearBtn').addEventListener('click', () => {
   renameItems = [];
   document.getElementById('renamePreview').innerHTML = '';
   document.getElementById('renameOutput').innerHTML = '';
   document.getElementById('renameClearBtn').style.display = 'none';
   document.getElementById('renameProcessBtn').disabled = true;
+  document.getElementById('renameFSABtn').disabled = true;
   setRenameStatus('');
 });
 
