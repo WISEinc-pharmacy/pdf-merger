@@ -1250,13 +1250,41 @@ function parseCsv(text) {
   return rows.filter(r => r.some(v => v.trim() !== ''));
 }
 function importMasterFromRows(rows) {
-  // 1行目がヘッダ（送付先名/番号 等）なら飛ばす
-  let start = 0;
-  if (rows.length && /送付先|名前|name|番号|code|コード/i.test((rows[0][0] || '') + (rows[0][1] || ''))) start = 1;
+  const firstRow = rows[0] || [];
+  const findColumn = pattern => firstRow.findIndex(value => pattern.test(String(value || '').trim()));
+  let nameColumn = findColumn(/送付先名|送付先|名前|氏名|name/i);
+  let codeColumn = findColumn(/番号|コード|code|no/i);
+
+  // 従来のヘッダ判定を維持しつつ、新たに対応する見出しもヘッダとして扱う
+  const legacyHeader = /送付先|名前|name|番号|code|コード/i.test(
+    (firstRow[0] || '') + (firstRow[1] || '')
+  );
+  const hasHeader = legacyHeader || nameColumn >= 0 || codeColumn >= 0;
+  let start = hasHeader ? 1 : 0;
+
+  if (hasHeader) {
+    if (nameColumn < 0) nameColumn = firstRow.findIndex((_, index) => index !== codeColumn);
+    if (codeColumn < 0) codeColumn = firstRow.findIndex((_, index) => index !== nameColumn);
+  }
+
+  if (!hasHeader || nameColumn < 0 || codeColumn < 0) {
+    const dataRows = rows.slice(start);
+    const isNumericOnly = value => {
+      const text = String(value || '').trim();
+      return /[0-9０-９]/.test(text) && /^[0-9０-９\-\s]+$/.test(text);
+    };
+    const reversedRows = dataRows.filter(row =>
+      isNumericOnly(row[0]) && !isNumericOnly(row[1])
+    ).length;
+    const isReversed = reversedRows > dataRows.length / 2;
+    nameColumn = isReversed ? 1 : 0;
+    codeColumn = isReversed ? 0 : 1;
+  }
+
   const next = [];
   for (let i = start; i < rows.length; i++) {
-    const name = (rows[i][0] || '').trim();
-    const code = (rows[i][1] || '').trim();
+    const name = (rows[i][nameColumn] || '').trim();
+    const code = (rows[i][codeColumn] || '').trim();
     if (name || code) next.push({ name, code });
   }
   return next;
